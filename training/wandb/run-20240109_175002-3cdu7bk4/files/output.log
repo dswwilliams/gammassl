@@ -1,0 +1,97 @@
+Device:  cpu
+No. of training examples per epoch: 44
+No. of iterations per epoch: 2.0
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+xFormers not available
+xFormers not available
+  0%|                                                                                                                                 | 0/1 [00:00<?, ?it/s]
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+raw_dict:  dict_keys(['img_1', 'img_2', 'box_A', 'box_B'])
+labelled_dict:  dict_keys(['box_A', 'img', 'label'])
+  0%|                                                                                                                                 | 0/1 [00:05<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 287, in calculate_batch_prototypes
+    labelled_dict,_ = next(self.train_proto_iterator)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 677, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    return self.collate_fn(data)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 265, in default_collate
+    return collate(batch, collate_fn_map=default_collate_fn_map)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 142, in collate
+    return [collate(samples, collate_fn_map=collate_fn_map) for samples in transposed]  # Backwards compatibility.
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 142, in <listcomp>
+    return [collate(samples, collate_fn_map=collate_fn_map) for samples in transposed]  # Backwards compatibility.
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 150, in collate
+    raise TypeError(default_collate_err_msg_format.format(elem_type))
+TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found <class 'NoneType'>
+During handling of the above exception, another exception occurred:
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 175, in <module>
+    trainer.train()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 196, in train
+    losses, metrics = self._train_models(labelled_dict, raw_dict)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 42, in _train_models
+    prototypes = self.model.calculate_batch_prototypes()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 293, in calculate_batch_prototypes
+    labelled_dict,_ = next(self.train_proto_iterator)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 633, in __next__
+    data = self._next_data()
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 677, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    return self.collate_fn(data)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 265, in default_collate
+    return collate(batch, collate_fn_map=default_collate_fn_map)
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 142, in collate
+    return [collate(samples, collate_fn_map=collate_fn_map) for samples in transposed]  # Backwards compatibility.
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 142, in <listcomp>
+    return [collate(samples, collate_fn_map=collate_fn_map) for samples in transposed]  # Backwards compatibility.
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/utils/data/_utils/collate.py", line 150, in collate
+    raise TypeError(default_collate_err_msg_format.format(elem_type))
+TypeError: default_collate: batch must contain tensors, numpy arrays, numbers, dicts or lists; found <class 'NoneType'>

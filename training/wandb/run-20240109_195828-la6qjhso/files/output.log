@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 174, in <module>
+    trainer = Trainer(opt)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 20, in __init__
+    super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 39, in __init__
+    self._init_model()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 57, in _init_model
+    self.model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list, crop_size=self.crop_size)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 33, in __init__
+    self.seg_net = SegNet(device, opt, num_known_classes=self.num_known_classes)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/vit_dino_repo_m2f_seg_net.py", line 26, in __init__
+    vit_dino = get_repo_dino(dino_path=self.opt.dino_path, dino_repo_path=self.opt.dino_repo_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/get_dino_from_repo.py", line 40, in get_repo_dino
+    from dinov2.models.vision_transformer import vit_small
+  File "/Users/dw/code/pytorch/dinov2/dinov2/models/__init__.py", line 9, in <module>
+    from . import vision_transformer as vits
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 846, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 941, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1039, in get_data
+KeyboardInterrupt
+Device:  cpu

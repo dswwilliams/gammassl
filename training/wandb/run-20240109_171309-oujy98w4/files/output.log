@@ -1,0 +1,9 @@
+Device:  cpu
+No. of training examples per epoch: 44
+No. of iterations per epoch: 2.0
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 174, in <module>
+    trainer = Trainer(opt)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 22, in __init__
+    self.losses = GammaSSLLosses(self.opt, self.device, num_known_classes=len(self.known_class_list))
+NameError: name 'GammaSSLLosses' is not defined

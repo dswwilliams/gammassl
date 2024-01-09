@@ -1,0 +1,20 @@
+Device:  cpu
+relative_upsample_factors [1.0, 2.0, 2.0]
+relative_downsample_factors [2]
+384
+xFormers not available
+xFormers not available
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 174, in <module>
+    trainer = Trainer(opt)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 20, in __init__
+    super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 39, in __init__
+    self._init_model()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 57, in _init_model
+    self.model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list, crop_size=self.crop_size)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 33, in __init__
+    self.seg_net = SegNet(device, opt, num_known_classes=self.num_known_classes)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/vit_dino_repo_m2f_seg_net.py", line 89, in __init__
+    if self.opt.proj_fu_features:
+AttributeError: 'Namespace' object has no attribute 'proj_fu_features'

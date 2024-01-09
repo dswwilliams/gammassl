@@ -1,0 +1,27 @@
+Device:  cpu
+relative_upsample_factors [1.0, 2.0, 2.0]
+relative_downsample_factors [2]
+384
+No. of training examples per epoch: 44
+No. of iterations per epoch: 2.0
+class_weights:  tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.])
+TrueCrossEntropy class weights tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.])
+xFormers not available
+xFormers not available
+  0%|                                                                                                                                 | 0/1 [00:00<?, ?it/s]
+no grad
+no grad
+no grad
+  0%|                                                                                                                                 | 0/1 [00:15<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 175, in <module>
+    trainer.train()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 196, in train
+    losses, metrics = self._train_models(labelled_dict, raw_dict)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 55, in _train_models
+    model_losses["loss_u"], model_losses["loss_c"], ssl_metrics = self.perform_unlabelled_task(raw_dict)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 163, in perform_unlabelled_task
+    self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 444, in update_gamma
+    if self.opt.loss_c_unmasked_only:
+AttributeError: 'Namespace' object has no attribute 'loss_c_unmasked_only'

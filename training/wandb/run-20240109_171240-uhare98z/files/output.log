@@ -1,0 +1,12 @@
+
+Device:  cpu
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 174, in <module>
+    trainer = Trainer(opt)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 20, in __init__
+    super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 41, in __init__
+    self._init_training_dataloader()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 97, in _init_training_dataloader
+    self.validator.train_seg_idxs = np.random.choice(len(self.dataset), self.opt.n_train_segs, replace=False)
+AttributeError: 'Trainer' object has no attribute 'validator'

@@ -1,0 +1,167 @@
+2024-01-09 19:58:53,716 INFO    StreamThr :21982 [internal.py:wandb_internal():86] W&B internal server running at pid: 21982, started at: 2024-01-09 19:58:53.715842
+2024-01-09 19:58:53,718 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: status
+2024-01-09 19:58:53,740 INFO    WriterThread:21982 [datastore.py:open_for_write():85] open: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/run-mimtjzhw.wandb
+2024-01-09 19:58:53,740 DEBUG   SenderThread:21982 [sender.py:send():375] send: header
+2024-01-09 19:58:53,845 DEBUG   SenderThread:21982 [sender.py:send():375] send: run
+2024-01-09 19:58:54,251 INFO    SenderThread:21982 [dir_watcher.py:__init__():219] watching files in: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files
+2024-01-09 19:58:54,252 INFO    SenderThread:21982 [sender.py:_start_run_threads():1124] run started: mimtjzhw with start time 1704830333.715434
+2024-01-09 19:58:54,265 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: summary_record
+2024-01-09 19:58:54,266 INFO    SenderThread:21982 [sender.py:_save_file():1378] saving file wandb-summary.json with policy end
+2024-01-09 19:58:54,282 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: check_version
+2024-01-09 19:58:54,283 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: check_version
+2024-01-09 19:58:54,389 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: run_start
+2024-01-09 19:58:54,415 DEBUG   HandlerThread:21982 [system_info.py:__init__():31] System info init
+2024-01-09 19:58:54,415 DEBUG   HandlerThread:21982 [system_info.py:__init__():46] System info init done
+2024-01-09 19:58:54,415 INFO    HandlerThread:21982 [system_monitor.py:start():181] Starting system monitor
+2024-01-09 19:58:54,416 INFO    SystemMonitor:21982 [system_monitor.py:_start():145] Starting system asset monitoring threads
+2024-01-09 19:58:54,416 INFO    HandlerThread:21982 [system_monitor.py:probe():201] Collecting system info
+2024-01-09 19:58:54,417 INFO    SystemMonitor:21982 [interfaces.py:start():190] Started cpu monitoring
+2024-01-09 19:58:54,417 DEBUG   HandlerThread:21982 [system_info.py:probe():195] Probing system
+2024-01-09 19:58:54,417 INFO    SystemMonitor:21982 [interfaces.py:start():190] Started disk monitoring
+2024-01-09 19:58:54,418 INFO    SystemMonitor:21982 [interfaces.py:start():190] Started memory monitoring
+2024-01-09 19:58:54,419 INFO    SystemMonitor:21982 [interfaces.py:start():190] Started network monitoring
+2024-01-09 19:58:54,431 DEBUG   HandlerThread:21982 [system_info.py:_probe_git():180] Probing git
+2024-01-09 19:58:54,535 DEBUG   HandlerThread:21982 [system_info.py:_probe_git():188] Probing git done
+2024-01-09 19:58:54,535 DEBUG   HandlerThread:21982 [system_info.py:probe():240] Probing system done
+2024-01-09 19:58:54,536 DEBUG   HandlerThread:21982 [system_monitor.py:probe():210] {'os': 'macOS-10.16-x86_64-i386-64bit', 'python': '3.9.16', 'heartbeatAt': '2024-01-09T19:58:54.418028', 'startedAt': '2024-01-09T19:58:53.685212', 'docker': None, 'cuda': None, 'args': ('--use_cpu', 'True', '--skip_validation', 'True'), 'state': 'running', 'program': '/Users/dw/code/pytorch/gammassl_public/training/train.py', 'codePath': 'training/train.py', 'git': {'remote': None, 'commit': 'a7d9b37465da34fc021a26f3eb640e07002a6ad1'}, 'email': 'dw@robots.ox.ac.uk', 'root': '/Users/dw/code/pytorch/gammassl_public', 'host': 'engs-30388.local', 'username': 'dw', 'executable': '/Users/dw/miniconda3/envs/dinov2/bin/python3', 'cpu_count': 12, 'cpu_count_logical': 12, 'cpu_freq': {'current': 2400, 'min': 2400, 'max': 2400}, 'cpu_freq_per_core': [{'current': 2400, 'min': 2400, 'max': 2400}], 'disk': {'total': 460.4317207336426, 'used': 12.256759643554688}, 'memory': {'total': 16.0}}
+2024-01-09 19:58:54,536 INFO    HandlerThread:21982 [system_monitor.py:probe():211] Finished collecting system info
+2024-01-09 19:58:54,536 INFO    HandlerThread:21982 [system_monitor.py:probe():214] Publishing system info
+2024-01-09 19:58:54,536 DEBUG   HandlerThread:21982 [system_info.py:_save_pip():51] Saving list of pip packages installed into the current environment
+2024-01-09 19:58:54,537 DEBUG   HandlerThread:21982 [system_info.py:_save_pip():67] Saving pip packages done
+2024-01-09 19:58:54,537 DEBUG   HandlerThread:21982 [system_info.py:_save_conda():74] Saving list of conda packages installed into the current environment
+2024-01-09 19:58:55,254 INFO    Thread-12 :21982 [dir_watcher.py:_on_file_created():278] file/dir created: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-summary.json
+2024-01-09 19:58:55,255 INFO    Thread-12 :21982 [dir_watcher.py:_on_file_created():278] file/dir created: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/conda-environment.yaml
+2024-01-09 19:58:55,255 INFO    Thread-12 :21982 [dir_watcher.py:_on_file_created():278] file/dir created: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/requirements.txt
+2024-01-09 19:59:01,283 INFO    Thread-12 :21982 [dir_watcher.py:_on_file_modified():295] file/dir modified: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/conda-environment.yaml
+2024-01-09 19:59:01,341 DEBUG   HandlerThread:21982 [system_info.py:_save_conda():86] Saving conda packages done
+2024-01-09 19:59:01,343 INFO    HandlerThread:21982 [system_monitor.py:probe():216] Finished publishing system info
+2024-01-09 19:59:01,357 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: poll_exit
+2024-01-09 19:59:01,358 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: status_report
+2024-01-09 19:59:01,358 DEBUG   SenderThread:21982 [sender.py:send():375] send: exit
+2024-01-09 19:59:01,358 INFO    SenderThread:21982 [sender.py:send_exit():598] handling exit code: 255
+2024-01-09 19:59:01,358 INFO    SenderThread:21982 [sender.py:send_exit():600] handling runtime: 6
+2024-01-09 19:59:01,359 INFO    SenderThread:21982 [sender.py:_save_file():1378] saving file wandb-summary.json with policy end
+2024-01-09 19:59:01,359 INFO    SenderThread:21982 [sender.py:send_exit():606] send defer
+2024-01-09 19:59:01,359 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: poll_exit
+2024-01-09 19:59:01,359 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,360 DEBUG   SenderThread:21982 [sender.py:send():375] send: files
+2024-01-09 19:59:01,360 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 0
+2024-01-09 19:59:01,360 INFO    SenderThread:21982 [sender.py:_save_file():1378] saving file wandb-metadata.json with policy now
+2024-01-09 19:59:01,360 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,360 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 0
+2024-01-09 19:59:01,360 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 1
+2024-01-09 19:59:01,360 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,360 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 1
+2024-01-09 19:59:01,360 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,360 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 1
+2024-01-09 19:59:01,360 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 2
+2024-01-09 19:59:01,360 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,360 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 2
+2024-01-09 19:59:01,360 INFO    HandlerThread:21982 [system_monitor.py:finish():190] Stopping system monitor
+2024-01-09 19:59:01,360 DEBUG   SystemMonitor:21982 [system_monitor.py:_start():159] Starting system metrics aggregation loop
+2024-01-09 19:59:01,360 DEBUG   SystemMonitor:21982 [system_monitor.py:_start():166] Finished system metrics aggregation loop
+2024-01-09 19:59:01,360 INFO    HandlerThread:21982 [interfaces.py:finish():202] Joined cpu monitor
+2024-01-09 19:59:01,360 DEBUG   SystemMonitor:21982 [system_monitor.py:_start():170] Publishing last batch of metrics
+2024-01-09 19:59:01,361 INFO    HandlerThread:21982 [interfaces.py:finish():202] Joined disk monitor
+2024-01-09 19:59:01,361 INFO    HandlerThread:21982 [interfaces.py:finish():202] Joined memory monitor
+2024-01-09 19:59:01,361 INFO    HandlerThread:21982 [interfaces.py:finish():202] Joined network monitor
+2024-01-09 19:59:01,361 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,361 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 2
+2024-01-09 19:59:01,361 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 3
+2024-01-09 19:59:01,361 DEBUG   SenderThread:21982 [sender.py:send():375] send: stats
+2024-01-09 19:59:01,361 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,361 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 3
+2024-01-09 19:59:01,361 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,361 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 3
+2024-01-09 19:59:01,361 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 4
+2024-01-09 19:59:01,362 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,362 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 4
+2024-01-09 19:59:01,362 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,362 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 4
+2024-01-09 19:59:01,362 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 5
+2024-01-09 19:59:01,362 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,362 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 5
+2024-01-09 19:59:01,362 DEBUG   SenderThread:21982 [sender.py:send():375] send: summary
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:_save_file():1378] saving file wandb-summary.json with policy end
+2024-01-09 19:59:01,365 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 5
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 6
+2024-01-09 19:59:01,365 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,365 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 6
+2024-01-09 19:59:01,365 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 6
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 7
+2024-01-09 19:59:01,365 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: status_report
+2024-01-09 19:59:01,365 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,365 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 7
+2024-01-09 19:59:01,365 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 7
+2024-01-09 19:59:01,365 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 8
+2024-01-09 19:59:01,365 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,365 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 8
+2024-01-09 19:59:01,366 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,366 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 8
+2024-01-09 19:59:01,367 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 9
+2024-01-09 19:59:01,367 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:01,367 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 9
+2024-01-09 19:59:01,367 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:01,367 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 9
+2024-01-09 19:59:01,367 INFO    SenderThread:21982 [dir_watcher.py:finish():365] shutting down directory watcher
+2024-01-09 19:59:01,689 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: keepalive
+2024-01-09 19:59:01,899 INFO    wandb-upload_0:21982 [upload_job.py:push():137] Uploaded file /var/folders/vv/ss58gcnj5w97tqbzcnh49rgr0000gn/T/tmpn5ibeurwwandb/iy1r48yu-wandb-metadata.json
+2024-01-09 19:59:02,291 INFO    SenderThread:21982 [dir_watcher.py:_on_file_modified():295] file/dir modified: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-summary.json
+2024-01-09 19:59:02,291 INFO    SenderThread:21982 [dir_watcher.py:_on_file_created():278] file/dir created: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-metadata.json
+2024-01-09 19:59:02,292 INFO    SenderThread:21982 [dir_watcher.py:finish():395] scan: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files
+2024-01-09 19:59:02,292 INFO    SenderThread:21982 [dir_watcher.py:finish():409] scan save: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/requirements.txt requirements.txt
+2024-01-09 19:59:02,293 INFO    SenderThread:21982 [dir_watcher.py:finish():409] scan save: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/config.yaml config.yaml
+2024-01-09 19:59:02,298 INFO    SenderThread:21982 [dir_watcher.py:finish():409] scan save: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-summary.json wandb-summary.json
+2024-01-09 19:59:02,302 INFO    SenderThread:21982 [dir_watcher.py:finish():409] scan save: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/conda-environment.yaml conda-environment.yaml
+2024-01-09 19:59:02,308 INFO    SenderThread:21982 [dir_watcher.py:finish():409] scan save: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-metadata.json wandb-metadata.json
+2024-01-09 19:59:02,309 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 10
+2024-01-09 19:59:02,311 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:02,311 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 10
+2024-01-09 19:59:02,315 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:02,315 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 10
+2024-01-09 19:59:02,316 INFO    SenderThread:21982 [file_pusher.py:finish():167] shutting down file pusher
+2024-01-09 19:59:02,693 INFO    wandb-upload_0:21982 [upload_job.py:push():137] Uploaded file /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/requirements.txt
+2024-01-09 19:59:02,771 INFO    wandb-upload_1:21982 [upload_job.py:push():137] Uploaded file /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/config.yaml
+2024-01-09 19:59:02,787 INFO    wandb-upload_3:21982 [upload_job.py:push():137] Uploaded file /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/conda-environment.yaml
+2024-01-09 19:59:02,789 INFO    wandb-upload_2:21982 [upload_job.py:push():137] Uploaded file /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/files/wandb-summary.json
+2024-01-09 19:59:02,992 INFO    Thread-11 :21982 [sender.py:transition_state():626] send defer: 11
+2024-01-09 19:59:02,993 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:02,993 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 11
+2024-01-09 19:59:02,994 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:02,994 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 11
+2024-01-09 19:59:02,994 INFO    SenderThread:21982 [file_pusher.py:join():172] waiting for file pusher
+2024-01-09 19:59:02,994 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 12
+2024-01-09 19:59:02,994 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:02,994 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 12
+2024-01-09 19:59:02,994 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:02,994 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 12
+2024-01-09 19:59:03,522 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 13
+2024-01-09 19:59:03,523 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:03,523 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 13
+2024-01-09 19:59:03,523 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:03,523 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 13
+2024-01-09 19:59:03,524 INFO    SenderThread:21982 [sender.py:transition_state():626] send defer: 14
+2024-01-09 19:59:03,524 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: defer
+2024-01-09 19:59:03,524 DEBUG   SenderThread:21982 [sender.py:send():375] send: final
+2024-01-09 19:59:03,524 INFO    HandlerThread:21982 [handler.py:handle_request_defer():170] handle defer: 14
+2024-01-09 19:59:03,524 DEBUG   SenderThread:21982 [sender.py:send():375] send: footer
+2024-01-09 19:59:03,525 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: defer
+2024-01-09 19:59:03,525 INFO    SenderThread:21982 [sender.py:send_request_defer():622] handle sender defer: 14
+2024-01-09 19:59:03,526 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: poll_exit
+2024-01-09 19:59:03,526 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: poll_exit
+2024-01-09 19:59:03,527 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: server_info
+2024-01-09 19:59:03,527 DEBUG   SenderThread:21982 [sender.py:send_request():402] send_request: server_info
+2024-01-09 19:59:03,530 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: get_summary
+2024-01-09 19:59:03,530 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: sampled_history
+2024-01-09 19:59:03,865 INFO    MainThread:21982 [wandb_run.py:_footer_history_summary_info():3469] rendering history
+2024-01-09 19:59:03,866 INFO    MainThread:21982 [wandb_run.py:_footer_history_summary_info():3501] rendering summary
+2024-01-09 19:59:03,866 INFO    MainThread:21982 [wandb_run.py:_footer_sync_info():3428] logging synced files
+2024-01-09 19:59:03,876 DEBUG   HandlerThread:21982 [handler.py:handle_request():144] handle_request: shutdown
+2024-01-09 19:59:03,876 INFO    HandlerThread:21982 [handler.py:finish():845] shutting down handler
+2024-01-09 19:59:04,530 INFO    WriterThread:21982 [datastore.py:close():298] close: /Users/dw/code/pytorch/gammassl_public/training/wandb/run-20240109_195853-mimtjzhw/run-mimtjzhw.wandb
+2024-01-09 19:59:04,870 INFO    SenderThread:21982 [sender.py:finish():1550] shutting down sender
+2024-01-09 19:59:04,870 INFO    SenderThread:21982 [file_pusher.py:finish():167] shutting down file pusher
+2024-01-09 19:59:04,870 INFO    SenderThread:21982 [file_pusher.py:join():172] waiting for file pusher

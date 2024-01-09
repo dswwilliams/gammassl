@@ -1,0 +1,20 @@
+
+Device:  cpu
+xFormers not available
+xFormers not available
+Traceback (most recent call last):
+  File "/Users/dw/code/pytorch/gammassl_public/training/train.py", line 174, in <module>
+    trainer = Trainer(opt)
+  File "/Users/dw/code/pytorch/gammassl_public/training/gammassl_trainer.py", line 20, in __init__
+    super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 39, in __init__
+    self._init_model()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../training/base_trainer.py", line 57, in _init_model
+    self.model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list, crop_size=self.crop_size)
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 116, in __init__
+    self._init_optimizers()
+  File "/Users/dw/code/pytorch/gammassl_public/training/../models/model.py", line 202, in _init_optimizers
+    if self.seg_net.fu_proj_net is not None:
+  File "/Users/dw/miniconda3/envs/dinov2/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1614, in __getattr__
+    raise AttributeError("'{}' object has no attribute '{}'".format(
+AttributeError: 'ViTDINOSegNet' object has no attribute 'fu_proj_net'

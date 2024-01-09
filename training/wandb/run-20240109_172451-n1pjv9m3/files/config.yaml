@@ -1,0 +1,396 @@
+wandb_version: 1
+
+gamma_reject_prop:
+  desc: null
+  value: 0.5
+data_aug:
+  desc: null
+  value: candr
+no_colour:
+  desc: null
+  value: false
+use_sax_png_dataset:
+  desc: null
+  value: false
+use_dinov1:
+  desc: null
+  value: false
+frozen_target_save_path:
+  desc: null
+  value: null
+frozen_target:
+  desc: null
+  value: false
+proj_query_pup:
+  desc: null
+  value: false
+enc_td_no_query_grad:
+  desc: null
+  value: false
+td_no_query_grad:
+  desc: null
+  value: false
+sharpen_temp:
+  desc: null
+  value: null
+ema_update_every:
+  desc: null
+  value: 1
+ema_beta:
+  desc: null
+  value: 0.999
+use_ema_target_net:
+  desc: null
+  value: false
+target_temp_factor:
+  desc: null
+  value: 0.1
+use_symmetric_branches:
+  desc: null
+  value: false
+validate_only:
+  desc: null
+  value: false
+qual_validate:
+  desc: null
+  value: false
+qual_output_dir:
+  desc: null
+  value: /Users/dw/processed_results/qual_results
+skip_uniformity:
+  desc: null
+  value: false
+skip_projection:
+  desc: null
+  value: false
+m2f_query_test:
+  desc: null
+  value: false
+nheads:
+  desc: null
+  value: 4
+num_points:
+  desc: null
+  value: 12544
+run_sup_task:
+  desc: null
+  value: false
+random_mask_prob:
+  desc: null
+  value: null
+run_masking_task:
+  desc: null
+  value: false
+use_scannet_twice:
+  desc: null
+  value: false
+proto_seg_for_sup:
+  desc: null
+  value: false
+imagenet_dataroot:
+  desc: null
+  value: ''
+scannet_dataroot:
+  desc: null
+  value: null
+scannet:
+  desc: null
+  value: false
+weird_dataroot:
+  desc: null
+  value: null
+no_unlabelled:
+  desc: null
+  value: false
+sunrgbd_dataroot:
+  desc: null
+  value: null
+sunrgbd:
+  desc: null
+  value: false
+val_all_sax:
+  desc: null
+  value: false
+vit_size:
+  desc: null
+  value: small
+n_train_segs:
+  desc: null
+  value: 4
+n_val_segs:
+  desc: null
+  value: 4
+use_wandb:
+  desc: null
+  value: true
+train_vit:
+  desc: null
+  value: false
+exp_name:
+  desc: null
+  value: null
+lora_rank:
+  desc: null
+  value: null
+dino_repo_path:
+  desc: null
+  value: /Users/dw/code/pytorch/dinov2
+dino_path:
+  desc: null
+  value: /Users/dw/code/pytorch/gammassl/models/dinov2.pth
+dinov1_repo_path:
+  desc: null
+  value: null
+dinov1_path:
+  desc: null
+  value: null
+cityscapes_only:
+  desc: null
+  value: false
+encoder:
+  desc: null
+  value: dino_repo
+use_vit_adapter:
+  desc: null
+  value: false
+decode_head:
+  desc: null
+  value: setr
+use_dino:
+  desc: null
+  value: false
+use_fake_data:
+  desc: null
+  value: false
+use_fixed_random_init:
+  desc: null
+  value: false
+model_config_path:
+  desc: null
+  value: ''
+model_weight_decay:
+  desc: null
+  value: 0
+no_filtering:
+  desc: null
+  value: false
+use_resize_noise:
+  desc: null
+  value: false
+uniformity_kernel_size:
+  desc: null
+  value: 4
+uniformity_stride:
+  desc: null
+  value: 4
+include_void:
+  desc: null
+  value: true
+max_uncertainty:
+  desc: null
+  value: 1
+threshold_type:
+  desc: null
+  value: linear
+num_thresholds:
+  desc: null
+  value: 500
+lr:
+  desc: null
+  value: 0.0005
+lr_backbone:
+  desc: null
+  value: null
+warmup_ratio:
+  desc: null
+  value: null
+n_warmup_iters:
+  desc: null
+  value: null
+lr_policy:
+  desc: null
+  value: null
+lr_mult:
+  desc: null
+  value: 1
+decay_mult:
+  desc: null
+  value: 1
+total_iters:
+  desc: null
+  value: 160000
+w_c:
+  desc: null
+  value: 1
+w_s:
+  desc: null
+  value: 1
+w_gamma:
+  desc: null
+  value: 1
+w_u:
+  desc: null
+  value: 1
+w_p:
+  desc: null
+  value: 1
+w_m:
+  desc: null
+  value: 1
+w_mask:
+  desc: null
+  value: 1
+w_dice:
+  desc: null
+  value: 1
+w_ce:
+  desc: null
+  value: 1
+batch_size:
+  desc: null
+  value: 24
+n_epochs:
+  desc: null
+  value: 1000
+use_class_weights_ssl:
+  desc: null
+  value: false
+use_class_weights_sup:
+  desc: null
+  value: false
+no_transforms:
+  desc: null
+  value: false
+overfit_on_batch:
+  desc: null
+  value: false
+feature_len:
+  desc: null
+  value: null
+prototype_len:
+  desc: null
+  value: 256
+intermediate_dim:
+  desc: null
+  value: 256
+feature_df:
+  desc: null
+  value: 4
+cityscapes_dataroot:
+  desc: null
+  value: /Users/dw/data/
+unlabelled_dataroot:
+  desc: null
+  value: /Users/dw/data/bdd100k
+wilddash_dataroot:
+  desc: null
+  value: /Users/dw/data/wilddash
+sax_raw_dataroot:
+  desc: null
+  value: /Users/dw/data/sax_raw
+sax_labelled_dataroot:
+  desc: null
+  value: /Users/dw/data/sax_labelled
+sensor_models_path:
+  desc: null
+  value: /Users/dw/code/lut/sensor-models
+cityscapes_class_weights_path:
+  desc: null
+  value: /Volumes/scratchdata/dw/cityscapes_class_weights_19c.pkl
+benchmarks_results_dir:
+  desc: null
+  value: /Volumes/scratchdata/dw/project_sax_results_tau_eq_1/results
+sax_domain:
+  desc: null
+  value: london
+min_crop_ratio:
+  desc: null
+  value: 2
+max_crop_ratio:
+  desc: null
+  value: 3
+big_crop_size:
+  desc: null
+  value: 208
+device:
+  desc: null
+  value: cpu
+use_cpu:
+  desc: null
+  value: true
+gpu_no:
+  desc: null
+  value: '0'
+num_workers:
+  desc: null
+  value: 0
+use_deep_features:
+  desc: null
+  value: true
+seg_net_config_path:
+  desc: null
+  value: null
+use_imagenet_norm:
+  desc: null
+  value: true
+imagenet_save_path:
+  desc: null
+  value: null
+temperature:
+  desc: null
+  value: 0.07
+log_dir:
+  desc: null
+  value: null
+log_every:
+  desc: null
+  value: 1
+visdom_port:
+  desc: null
+  value: 8097
+output2visdom:
+  desc: null
+  value: false
+full_validation_every:
+  desc: null
+  value: 1000
+skip_validation:
+  desc: null
+  value: true
+save_every:
+  desc: null
+  value: 1
+network_destination:
+  desc: null
+  value: null
+save_path:
+  desc: null
+  value: null
+prototypes_path:
+  desc: null
+  value: null
+_wandb:
+  desc: null
+  value:
+    python_version: 3.9.16
+    cli_version: 0.15.2
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1704821091.501113
+    t:
+      1:
+      - 1
+      - 55
+      - 79
+      2:
+      - 1
+      - 55
+      - 79
+      3:
+      - 16
+      - 23
+      4: 3.9.16
+      5: 0.15.2
+      8:
+      - 5

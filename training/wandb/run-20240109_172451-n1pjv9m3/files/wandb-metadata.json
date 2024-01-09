@@ -1,0 +1,47 @@
+{
+    "os": "macOS-10.16-x86_64-i386-64bit",
+    "python": "3.9.16",
+    "heartbeatAt": "2024-01-09T17:24:52.429394",
+    "startedAt": "2024-01-09T17:24:51.472107",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--use_cpu",
+        "True",
+        "--skip_validation",
+        "True"
+    ],
+    "state": "running",
+    "program": "/Users/dw/code/pytorch/gammassl_public/training/train.py",
+    "codePath": "training/train.py",
+    "git": {
+        "remote": null,
+        "commit": "a7d9b37465da34fc021a26f3eb640e07002a6ad1"
+    },
+    "email": "dw@robots.ox.ac.uk",
+    "root": "/Users/dw/code/pytorch/gammassl_public",
+    "host": "engs-30388.local",
+    "username": "dw",
+    "executable": "/Users/dw/miniconda3/envs/dinov2/bin/python3",
+    "cpu_count": 12,
+    "cpu_count_logical": 12,
+    "cpu_freq": {
+        "current": 2400,
+        "min": 2400,
+        "max": 2400
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2400,
+            "min": 2400,
+            "max": 2400
+        }
+    ],
+    "disk": {
+        "total": 460.4317207336426,
+        "used": 12.256759643554688
+    },
+    "memory": {
+        "total": 16.0
+    }
+}
