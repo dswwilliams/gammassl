@@ -108,7 +108,7 @@ class Trainer(BaseTrainer):
         - so the mapping from labelled images to supervised loss is quite specific to to each model 
         """
 
-        if self.opt.model_arch == "dino_repo_m2f":
+        if self.opt.model_arch == "vit_m2f":
             m2f_outputs = self.segment_labelled_imgs(labelled_imgs, labelled_crop_boxes_A)
             ### (losses) compute supervised losses and their gradients ###
             losses, metrics = self.losses.calculate_m2f_losses(m2f_outputs, labels, labelled_crop_boxes_A)

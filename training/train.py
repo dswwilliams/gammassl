@@ -23,7 +23,7 @@ parser.add_argument('--gamma_reject_prop', type=float, default=0.5)
 parser.add_argument('--mask_input', type=str2bool, default=False)
 parser.add_argument('--use_proto_seg', type=str2bool, default=False)
 parser.add_argument('--train_encoder', type=str2bool, default=False)
-parser.add_argument('--model_arch', type=str, default="dino_repo_m2f")
+parser.add_argument('--model_arch', type=str, default="vit_m2f")
 
 
 
@@ -146,7 +146,6 @@ parser.add_argument('--lora_rank', type=int, default=None)
 parser.add_argument('--dino_repo_path', type=str, default="/Users/dw/code/pytorch/dinov2")
 parser.add_argument('--dino_path', type=str, default="/Users/dw/code/pytorch/gammassl/models/dinov2.pth")
 parser.add_argument('--cityscapes_only', type=str2bool, default=False)
-parser.add_argument('--encoder', type=str, default="dino_repo_m2f")
 parser.add_argument('--use_vit_adapter', type=str2bool, default=False)
 parser.add_argument("--decode_head", type=str, default="setr")
 parser.add_argument("--use_dino", type=str2bool, default=False)
