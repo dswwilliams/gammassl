@@ -133,26 +133,24 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             raw_imgs_t_tA = crop_by_box_and_resize(raw_imgs_t, raw_crop_boxes_A)
             if self.opt.frozen_target:
+                # TODO: can we bury whether the target is frozen or not in the model?
                 seg_masks_t_tA = self.model.target_seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
             else:
                 seg_masks_t_tA = self.model.seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
             seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, raw_crop_boxes_B)
 
         ### query branch ###
-        if self.opt.use_proto_seg: 
-            # TODO put in model
-            raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
+        raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
+        if self.opt.use_proto_seg:
             raw_features_q_tB = self.model.seg_net.extract_features(raw_imgs_q_tB)
-            seg_masks_q_tB, mean_sim_to_NNprototype_q = self.model.proto_segment_features(
-                                                                        raw_features_q_tB, 
-                                                                        img_spatial_dims=raw_imgs_q.shape[-2:], 
-                                                                        skip_projection=self.opt.skip_projection,
-                                                                        )
-            seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+            seg_masks_q_tB = self.model.proto_segment_features(
+                                                    features=raw_features_q_tB, 
+                                                    img_spatial_dims=raw_imgs_q.shape[-2:], 
+                                                    skip_projection=self.opt.skip_projection,
+                                                    )
         else:
-            raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
             seg_masks_q_tB = self.model.seg_net.get_query_seg_masks(raw_imgs_q_tB, include_void=False, high_res=True)
-            seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+        seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
 
         ### uniformity loss ###
         if self.opt.use_proto_seg:

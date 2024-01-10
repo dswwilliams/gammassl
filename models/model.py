@@ -47,13 +47,13 @@ class SegmentationModel(nn.Module):
 
 
         if self.opt.frozen_target:
+            # create copy of seg_net for target that doesn't get updated
             self.target_seg_net = copy.deepcopy(self.seg_net)
             self.target_seg_net.to(self.device)
-            # load in network trained with sup task only
+            # load in network from -> self.opt.frozen_target_save_path
             checkpoint = torch.load(self.opt.frozen_target_save_path, map_location=self.device)
             self.target_seg_net.encoder.load_state_dict(checkpoint["encoder"], strict=False)
             self.target_seg_net.decoder.load_state_dict(checkpoint["decoder"])
-            self.target_seg_net.eval()      # should stay in eval mode
 
 
         ### define prototypes ###
@@ -223,20 +223,19 @@ class SegmentationModel(nn.Module):
             proj_features = self.seg_net.projection_net(features)
 
         if include_void:
-            gamma_input = self.gamma
+            _gamma = self.gamma
         else:
-            gamma_input = None
+            _gamma = None
 
-        seg_masks_q_tB, mean_sim_to_NNprototype_q = self.segment_via_prototypes(
-                                                                            proj_features,
-                                                                            prototypes.detach(),         # NB: to prevent backprop through them for this task
-                                                                            gamma=gamma_input,
-                                                                            output_metrics=True,
-                                                                            )
+        seg_masks_q_tB = self.segment_via_prototypes(
+                                            proj_features,
+                                            prototypes.detach(),         # NB: to prevent backprop through them for this task
+                                            gamma=_gamma,
+                                            )
         if img_spatial_dims is not None:
             H,W = img_spatial_dims
             seg_masks_q_tB = F.interpolate(seg_masks_q_tB, size=(H,W), mode="bilinear", align_corners=True)
-        return seg_masks_q_tB, mean_sim_to_NNprototype_q
+        return seg_masks_q_tB
 
     def proto_segment_imgs(self, imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=None, skip_projection=False):
         if skip_projection or self.opt.skip_projection:

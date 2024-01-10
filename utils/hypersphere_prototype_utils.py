@@ -103,7 +103,7 @@ class Segment_via_HyperSpherePrototypes(nn.Module):
         if output_metrics:
             return seg_masks, mean_sim_per_class_to_NNprototype
         else:
-            return seg_masks, None
+            return seg_masks
 
 
 def calc_inter_prototype_sims(prototypes):
