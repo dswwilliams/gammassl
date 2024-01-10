@@ -30,29 +30,43 @@ class Trainer(BaseTrainer):
     
     ##########################################################################################################################################################
     def _train_models(self, labelled_dict, raw_dict):
-        model_losses = {}
+        """
+        steps:
+        - model to train
+        - if required
+            - calculate prototypes
+        - perform labelled task
+        - if required
+            - calculate prototype loss
+        - perform unlabelled task
+        - backprop, update model and log losses and metrics
+        """
         losses = {}
         metrics = {}
 
         self.model.model_to_train()
 
-
         ### calculate prototypes ###
-        prototypes = self.model.calculate_batch_prototypes()
+        print("calculating prototypes...")
+        if self.opt.use_proto_seg:
+            prototypes = self.model.calculate_batch_prototypes()
 
         ### supervised loss ###
+        print("performing labelled task...")
         m2f_losses, sup_metrics = self.perform_labelled_task(labelled_dict)
         for key in sup_metrics:
             metrics[key] = sup_metrics[key].item()
         for key in m2f_losses:                          # loss_mask, loss_dice, loss_ce
-            model_losses[key] = m2f_losses[key]
+            losses[key] = m2f_losses[key]
         
         ### prototype loss ###
-        if not self.opt.use_symmetric_branches:
-            model_losses["loss_p"] = self.losses.calculate_prototype_loss(prototypes)
+        if self.opt.use_proto_seg:
+            print("calculating prototype loss...")
+            losses["loss_p"] = self.losses.calculate_prototype_loss(prototypes)
 
         ### uniformity and consistency losses ###
-        model_losses["loss_u"], model_losses["loss_c"], ssl_metrics = self.perform_unlabelled_task(raw_dict)
+        print("performing unlabelled task...")
+        losses["loss_u"], losses["loss_c"], ssl_metrics = self.perform_unlabelled_task(raw_dict)
         for key in ssl_metrics:
             metrics[key] = ssl_metrics[key]
 
@@ -61,25 +75,24 @@ class Trainer(BaseTrainer):
             self.model.optimizers[network_ids].zero_grad()
 
         ### backprop loss ###
+        print("backpropagating loss...")
         model_loss = 0
-        for key, loss in model_losses.items():
+        for key, loss in losses.items():
             weight = self.loss_weights[key.replace("loss_", "w_")]
             model_loss += weight * loss
         (model_loss).backward()
 
         ### update weights ###
+        print("updating weights...")
         for network_ids in self.model.optimizers:
             self.model.optimizers[network_ids].step()
         for network_ids in self.model.schedulers:
             self.model.schedulers[network_ids].step()
-        if self.opt.use_ema_target_net:
-            self.model.ema_seg_net.update()
 
         ### logging ###
         model_loss = model_loss.item()
-        for key in model_losses:
-            model_losses[key] = model_losses[key].item()
-            losses[key] = model_losses[key]
+        for key in losses:
+            losses[key] = losses[key].item()
         return losses, metrics
     ##########################################################################################################################################################
 
@@ -90,10 +103,20 @@ class Trainer(BaseTrainer):
         labels = to_device(labelled_dict["label"], self.device)
         labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
 
-        m2f_outputs = self.segment_labelled_imgs(labelled_imgs, labelled_crop_boxes_A)
-        
-        ### (losses) compute supervised losses and their gradients ###
-        losses, metrics = self.losses.calculate_m2f_losses(m2f_outputs, labels, labelled_crop_boxes_A)
+        """
+        TODO: make this less model specific
+        - so the mapping from labelled images to supervised loss is quite specific to to each model 
+        """
+
+        if self.opt.model_arch == "dino_repo_m2f":
+            m2f_outputs = self.segment_labelled_imgs(labelled_imgs, labelled_crop_boxes_A)
+            ### (losses) compute supervised losses and their gradients ###
+            losses, metrics = self.losses.calculate_m2f_losses(m2f_outputs, labels, labelled_crop_boxes_A)
+        elif self.opt.model_arch == "deeplab":
+            labelled_imgs_A = crop_by_box_and_resize(labelled_imgs, labelled_crop_boxes_A)  
+            labelled_seg_masks_A = self.model.seg_net.get_seg_masks(labelled_imgs_A, include_void=False, high_res=True)
+            sup_loss, metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels, labelled_crop_boxes_A)
+            losses = {"loss_s": sup_loss}
 
         return losses, metrics
     ######################################################################################################################################################
@@ -101,80 +124,52 @@ class Trainer(BaseTrainer):
 
     ######################################################################################################################################################
     def perform_unlabelled_task(self, raw_dict):
-        if not self.opt.no_unlabelled:
-            raw_imgs_t = to_device(raw_dict["img_1"], self.device)
-            raw_imgs_q = to_device(raw_dict["img_2"], self.device)
-            raw_crop_boxes_A = to_device(raw_dict["box_A"], self.device)
-            raw_crop_boxes_B = to_device(raw_dict["box_B"], self.device)
+        raw_imgs_t = to_device(raw_dict["img_1"], self.device)
+        raw_imgs_q = to_device(raw_dict["img_2"], self.device)
+        raw_crop_boxes_A = to_device(raw_dict["box_A"], self.device)
+        raw_crop_boxes_B = to_device(raw_dict["box_B"], self.device)
 
-            ### target branch ###
-            with torch.no_grad():
-                raw_imgs_t_tA = crop_by_box_and_resize(raw_imgs_t, raw_crop_boxes_A)
-                if self.opt.frozen_target:
-                    seg_masks_t_tA = self.model.target_seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
-                elif self.opt.use_ema_target_net:
-                    seg_masks_t_tA = self.model.ema_seg_net.ema_model.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
-                else:
-                    seg_masks_t_tA = self.model.seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
-                seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, raw_crop_boxes_B)
-
-            ### query branch ###
-            if self.opt.enc_td_no_query_grad:
-                for param in self.model.seg_net.decode_head.transformer_decoder.parameters():       # includes embeddings
-                    param.requires_grad = False
-                for param in self.model.seg_net.backbone.parameters():
-                    param.requires_grad = False
-            elif self.opt.td_no_query_grad:
-                # don't compute gradients for transformer decoder on query branch (i.e. only update via sup losses)
-                for param in self.model.seg_net.decode_head.transformer_decoder.parameters():       # includes embeddings
-                    param.requires_grad = False
-
-            if self.opt.use_symmetric_branches:
-                raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
-                seg_masks_q_tB = self.model.seg_net.get_query_seg_masks(raw_imgs_q_tB, include_void=False, high_res=True)
-                seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+        ### target branch ###
+        with torch.no_grad():
+            raw_imgs_t_tA = crop_by_box_and_resize(raw_imgs_t, raw_crop_boxes_A)
+            if self.opt.frozen_target:
+                seg_masks_t_tA = self.model.target_seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
             else:
-                raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
-                raw_features_q_tB = self.model.seg_net.extract_features(raw_imgs_q_tB)
-                seg_masks_q_tB, mean_sim_to_NNprototype_q = self.model.proto_segment_features(
-                                                                            raw_features_q_tB, 
-                                                                            img_spatial_dims=raw_imgs_q.shape[-2:], 
-                                                                            skip_projection=self.opt.skip_projection,
-                                                                            )
-                seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+                seg_masks_t_tA = self.model.seg_net.get_target_seg_masks(raw_imgs_t_tA, include_void=False, high_res=True)
+            seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, raw_crop_boxes_B)
 
-            if self.opt.enc_td_no_query_grad:
-                for param in self.model.seg_net.decode_head.transformer_decoder.parameters():       # includes embeddings
-                    param.requires_grad = True
-                for param in self.model.seg_net.backbone.parameters():
-                    param.requires_grad = True
-            elif self.opt.td_no_query_grad:
-                for param in self.model.seg_net.decode_head.transformer_decoder.parameters():
-                    param.requires_grad = True
+        ### query branch ###
+        if self.opt.use_proto_seg: 
+            # TODO put in model
+            raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
+            raw_features_q_tB = self.model.seg_net.extract_features(raw_imgs_q_tB)
+            seg_masks_q_tB, mean_sim_to_NNprototype_q = self.model.proto_segment_features(
+                                                                        raw_features_q_tB, 
+                                                                        img_spatial_dims=raw_imgs_q.shape[-2:], 
+                                                                        skip_projection=self.opt.skip_projection,
+                                                                        )
+            seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+        else:
+            raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
+            seg_masks_q_tB = self.model.seg_net.get_query_seg_masks(raw_imgs_q_tB, include_void=False, high_res=True)
+            seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
 
-            ### uniformity loss ###
-            if self.opt.skip_uniformity:
-                loss_u = torch.zeros(1).to(self.device).squeeze()
-            else:
-                loss_u = self.losses.calculate_uniformity_loss(features=raw_features_q_tB, projection_net=self.model.seg_net.projection_net)
-
-            ### calculating gamma ###
-            if not self.opt.no_filtering:
-                self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
-
-            ### logging ###
-            if not self.opt.use_symmetric_branches:
-                self.log_sim_metrics(mean_sim_to_NNprototype_q)
-    
-            ### get gamma masks ###
-            gamma_masks_q = self.evaluate_seg_masks_with_gamma(seg_masks_q_tBA)
-
-            ### consistency loss ###
-            loss_c, ssl_metrics = self.losses.calculate_ssl_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
+        ### uniformity loss ###
+        if self.opt.use_proto_seg:
+            loss_u = self.losses.calculate_uniformity_loss(features=raw_features_q_tB, projection_net=self.model.seg_net.projection_net)
         else:
             loss_u = torch.zeros(1).to(self.device).squeeze()
-            loss_c = torch.zeros(1).to(self.device).squeeze()
-            ssl_metrics = {}
+
+        ### calculating gamma ###
+        if not self.opt.no_filtering:
+            self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
+
+        ### get gamma masks ###
+        gamma_masks_q = self.evaluate_seg_masks_with_gamma(seg_masks_q_tBA)
+
+        ### consistency loss ###
+        loss_c, ssl_metrics = self.losses.calculate_ssl_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
+
 
         return loss_u, loss_c, ssl_metrics
     ######################################################################################################################################################
@@ -188,21 +183,6 @@ class Trainer(BaseTrainer):
         output = self.model.seg_net.extract_m2f_output(labelled_imgs_A)
 
         return output
-    ######################################################################################################################################################
-
-    ######################################################################################################################################################
-    def log_sim_metrics(self, mean_sim_to_NNprototype):
-        raw_mean_sim_to_NNprototype_sum = 0
-        raw_mean_sim_to_NNprototype_count = 0
-        for class_no in range(mean_sim_to_NNprototype.shape[0]):
-            if not (mean_sim_to_NNprototype[class_no].item() == 0):
-                wandb.log({'raw_mean_sim_to_NNprototype/'+self.known_class_list[class_no]: mean_sim_to_NNprototype[class_no].item()}, commit=False)
-
-                raw_mean_sim_to_NNprototype_sum += mean_sim_to_NNprototype[class_no].sum().cpu().item()
-                raw_mean_sim_to_NNprototype_count += 1
-        raw_mean_sim_to_NNprototype_mean = raw_mean_sim_to_NNprototype_sum / raw_mean_sim_to_NNprototype_count
-        # self.writer.add_scalar('raw_mean_sim_to_NNprototype_mean/mean_over_all_classes', raw_mean_sim_to_NNprototype_mean, self.it_count)
-        wandb.log({'raw_mean_sim_to_NNprototype_mean/mean_over_all_classes': raw_mean_sim_to_NNprototype_mean}, commit=False)
     ######################################################################################################################################################
 
 

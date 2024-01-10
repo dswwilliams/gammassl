@@ -99,8 +99,8 @@ class BaseTrainer():
 
         # define collation function to implement masking if requested
         from utils.collation_utils import get_collate_fn
-        if self.opt.data_aug == "mask":
-            _collate_fn = get_collate_fn(img_size=224, patch_size=14, random_mask_prob=self.opt.random_mask_prob)
+        if self.opt.mask_input:
+            _collate_fn = get_collate_fn(img_size=self.crop_size, patch_size=14, random_mask_prob=self.opt.random_mask_prob)
         else:
             _collate_fn = None
 
@@ -175,8 +175,7 @@ class BaseTrainer():
                 if (self.it_count % self.opt.full_validation_every == 0):
                     self.model.model_to_eval()
                     if not self.opt.skip_validation:
-                        if self.opt.data_aug == "candr":
-                            self.model.calculate_dataset_prototypes()
+                        self.model.calculate_dataset_prototypes()
 
                         # log qualitative results
                         self.validator.view_train_segmentations(train_dataset=self.dataset, model=self.model)

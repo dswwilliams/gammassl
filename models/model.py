@@ -14,7 +14,13 @@ sys.path.append("../")
 
 
 class SegmentationModel(nn.Module):
-    """ class that deals with defining and updating: neural networks, prototypes and gamma """
+    """
+    class that deals with defining and updating: neural networks, prototypes and gamma 
+    
+    TODO: make sure that the methods in this class are generic to any defined model, i.e. vit or resnet
+          i.e. they call generic functions from the self.seg_net
+    """
+    
     ##########################################################################################################################################################
     def __init__(self, device, opt, known_class_list, crop_size):
         super().__init__()
@@ -23,17 +29,21 @@ class SegmentationModel(nn.Module):
         self.num_known_classes = len(known_class_list)
         self.crop_size = crop_size
 
-        if self.opt.encoder == "dino_repo":
-            from models.vit_dino_repo_seg_net import ViTDINOSegNet as SegNet
-        elif self.opt.encoder == "dino_repo_m2f":
-            from models.vit_dino_repo_m2f_seg_net import ViTDINOSegNet as SegNet
+        # if self.opt.encoder == "dino_repo":
+        #     from models.vit_dino_repo_seg_net import ViTDINOSegNet as SegNet
 
-        
+
+        # TODO make sure these can be used interchangeably
+        if self.opt.model_arch == "dino_repo_m2f":
+            from models.vit_dino_repo_m2f_seg_net import ViTDINOSegNet as SegNet
+        elif self.opt.model_arch == "deeplab":
+            from models.deeplab_seg_net import DeepLabSegNet as SegNet
+
 
         self.seg_net = SegNet(device, opt, num_known_classes=self.num_known_classes)
         if self.opt.lora_rank is not None:
             import loralib as lora
-            lora.mark_only_lora_as_trainable(self.seg_net.backbone)
+            lora.mark_only_lora_as_trainable(self.seg_net.encoder)
 
 
         if self.opt.frozen_target:
@@ -41,18 +51,9 @@ class SegmentationModel(nn.Module):
             self.target_seg_net.to(self.device)
             # load in network trained with sup task only
             checkpoint = torch.load(self.opt.frozen_target_save_path, map_location=self.device)
-            self.target_seg_net.backbone.load_state_dict(checkpoint["backbone"], strict=False)
-            self.target_seg_net.decode_head.load_state_dict(checkpoint["decode_head"])
+            self.target_seg_net.encoder.load_state_dict(checkpoint["encoder"], strict=False)
+            self.target_seg_net.decoder.load_state_dict(checkpoint["decoder"])
             self.target_seg_net.eval()      # should stay in eval mode
-        elif self.opt.use_ema_target_net:
-            self.ema_seg_net = EMA(
-                                self.seg_net,
-                                beta = self.opt.ema_beta,                          # exponential moving average factor
-                                update_after_step = 0,                             # only after this number of .update() calls will it start updating
-                                update_every = self.opt.ema_update_every,          # how often to actually update, to save on compute (updates every 10th .update() call)
-                                inv_gamma=1.0,
-                                power=1,                                           # gamma < 1 means model gets further from online model through time (beta gets closer to 1)
-                                )
 
 
         ### define prototypes ###
@@ -125,16 +126,16 @@ class SegmentationModel(nn.Module):
         # setup optmisers for each model part 
         self.optimizers = {}
 
-        if self.opt.lr_backbone is not None:
-            backbone_lr = self.opt.lr_backbone
+        if self.opt.lr_encoder is not None:
+            encoder_lr = self.opt.lr_encoder
         else:
-            backbone_lr = self.opt.lr
+            encoder_lr = self.opt.lr
 
         if self.opt.use_vit_adapter:
             # not updating ViT blocks, pos_embed_interpolated, patch_embed, cls_token
             params_to_update = []
             names_of_params_not_to_update = []
-            for name, param in self.seg_net.backbone.named_parameters():
+            for name, param in self.seg_net.encoder.named_parameters():
                 if "blocks" in name:
                     names_of_params_not_to_update.append(name)
                 elif name == "pos_embed_interpolated":
@@ -146,52 +147,40 @@ class SegmentationModel(nn.Module):
                 else:
                     params_to_update.append(param)
 
-            self.optimizers["backbone"] = _optimizer(
+            self.optimizers["encoder"] = _optimizer(
                                             params=params_to_update, 
-                                            lr=backbone_lr, 
+                                            lr=encoder_lr, 
                                             weight_decay=self.opt.model_weight_decay,
                                             betas=(0.9, 0.999),         # default
                                             )
         elif self.opt.lora_rank is not None:
-            backbone_trainable_params = []
-            for name, param in self.seg_net.backbone.named_parameters():
+            encoder_trainable_params = []
+            for name, param in self.seg_net.encoder.named_parameters():
                 if "lora" in name:
-                    backbone_trainable_params.append(param)
+                    encoder_trainable_params.append(param)
 
 
-            self.optimizers["backbone"] = _optimizer(
-                                            params=backbone_trainable_params, 
-                                            lr=backbone_lr, 
+            self.optimizers["encoder"] = _optimizer(
+                                            params=encoder_trainable_params, 
+                                            lr=encoder_lr, 
                                             weight_decay=self.opt.model_weight_decay,
                                             betas=(0.9, 0.999),         # default
                                             )
         else:
-            self.optimizers["backbone"] = _optimizer(
-                                            params=list(self.seg_net.backbone.parameters()), 
-                                            lr=backbone_lr, 
+            self.optimizers["encoder"] = _optimizer(
+                                            params=list(self.seg_net.encoder.parameters()), 
+                                            lr=encoder_lr, 
                                             weight_decay=self.opt.model_weight_decay,
                                             betas=(0.9, 0.999),         # default
                                             )
-        if self.seg_net.neck is not None:
-            self.optimizers["neck"] = _optimizer(
-                                            params=list(self.seg_net.neck.parameters()), 
-                                            lr=self.opt.lr, 
-                                            weight_decay=self.opt.model_weight_decay,
-                                            betas=(0.9, 0.999),         # default
-                                            )
-        self.optimizers["decode_head"] = _optimizer(
-                                            params=list(self.seg_net.decode_head.parameters()), 
+
+        self.optimizers["decoder"] = _optimizer(
+                                            params=list(self.seg_net.decoder.parameters()), 
                                             lr=self.opt.lr*self.opt.lr_mult, 
                                             weight_decay=self.opt.model_weight_decay*self.opt.decay_mult,
                                             betas=(0.9, 0.999),         # default
                                             )
-        if self.seg_net.seg_head is not None:
-            self.optimizers["seg_head"] = _optimizer(
-                                                params=list(self.seg_net.seg_head.parameters()), 
-                                                lr=self.opt.lr*self.opt.lr_mult, 
-                                                weight_decay=self.opt.model_weight_decay*self.opt.decay_mult,
-                                                betas=(0.9, 0.999),         # default
-                                                )
+
         if self.seg_net.projection_net is not None:
             self.optimizers["projection_net"] = _optimizer(
                                         params=list(self.seg_net.projection_net.parameters()), 
@@ -439,17 +428,6 @@ class SegmentationModel(nn.Module):
 
         segs_q, segs_t = seg_masks_q.detach().argmax(1), seg_masks_t.detach().argmax(1)
         consistency_masks = torch.eq(segs_q, segs_t).float()
-        # print(f"in update gamma, consistency_masks mean: {consistency_masks.mean()}")
-        # i.e. proxy for mean accuracy
-        # if self.opt.loss_c_unmasked_only:
-        #     # update gamma based on mean consistency of unmasked pixels only
-        #     H, W = consistency_masks.shape[-2:] 
-        #     raw_masks_q = raw_masks_q.reshape(-1, H//14, W//14)
-        #     raw_masks_q = F.interpolate(raw_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
-        #     # ((consistency_masks * (1-raw_masks_q.float())).sum()/ (1-raw_masks_q.float()).sum()).cpu()
-        #     raw_masks_q = raw_masks_q.to(consistency_masks.device)
-        #     mean_consistency = (consistency_masks * (1-raw_masks_q.float())).sum() / (1-raw_masks_q.float()).sum()
-        # else:
         mean_consistency = consistency_masks.mean()
 
         with torch.no_grad():
@@ -458,11 +436,11 @@ class SegmentationModel(nn.Module):
             # NOTE: think about what scores we are giving it
             if (self.opt.gamma_scaling is None) or (self.opt.gamma_scaling == "None"):
                 sims_per_pixel = torch.max(seg_masks_q.detach(), dim=1)[0]         # shape [bs, h, w]
-                print(f"in update_gamma: ms_imgs_q min mean max: {sims_per_pixel.min()}, {sims_per_pixel.mean()}, {sims_per_pixel.max()}")
+                # print(f"in update_gamma: ms_imgs_q min mean max: {sims_per_pixel.min()}, {sims_per_pixel.mean()}, {sims_per_pixel.max()}")
             elif self.opt.gamma_scaling == "softmax":
                 # use temperature weighted softmax scores (like in testing)
                 sims_per_pixel = torch.max(torch.softmax(seg_masks_q.detach()/self.opt.gamma_temp, dim=1), dim=1)[0]
-                print(f"in update_gamma: ms_imgs_q min mean max: {sims_per_pixel.min()}, {sims_per_pixel.mean()}, {sims_per_pixel.max()}")
+                # print(f"in update_gamma: ms_imgs_q min mean max: {sims_per_pixel.min()}, {sims_per_pixel.mean()}, {sims_per_pixel.max()}")
             sims_per_pixel = sims_per_pixel.flatten()
             sims_per_pixel = torch.sort(sims_per_pixel, descending=False)[0]
             num_pixels_to_reject = int(reject_proportion * sims_per_pixel.numel())

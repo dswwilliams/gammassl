@@ -22,10 +22,10 @@ class ViTDINOSegNet(BaseSegNet):
 
 
         ################################################################################################
-        ### defining backbone ###
+        ### defining encoder ###
         vit_dino = get_repo_dino(dino_path=self.opt.dino_path, dino_repo_path=self.opt.dino_repo_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)
-        self.backbone = vit_dino
-        self.backbone_dim = vit_dino.embed_dim
+        self.encoder = vit_dino
+        self.encoder_dim = vit_dino.embed_dim
         ################################################################################################
 
         ################################################################################################
@@ -33,7 +33,7 @@ class ViTDINOSegNet(BaseSegNet):
         from models.setr_decode_head import SETRUPHead_M2F
         decoder_pup = SETRUPHead_M2F(
                                 global_scales=[0.5, 1, 2, 4],
-                                in_channels=self.backbone_dim,
+                                in_channels=self.encoder_dim,
                                 out_channels=self.intermediate_dim,
                                 )
         
@@ -56,8 +56,8 @@ class ViTDINOSegNet(BaseSegNet):
 
             from models.projection_networks import ProjectionMLP
             projection_net = ProjectionMLP(
-                                    input_feature_len=self.backbone_dim,
-                                    output_feature_len=self.backbone_dim, 
+                                    input_feature_len=self.encoder_dim,
+                                    output_feature_len=self.encoder_dim, 
                                     dropout_prob=None,
                                     ).to(self.device)
             # project at low res -> learned upsampling
@@ -84,14 +84,14 @@ class ViTDINOSegNet(BaseSegNet):
                 def forward():
                     pass
 
-        self.decode_head = Decoder()
+        self.decoder = Decoder()
 
         ################################################################################################
 
         ################################################################################################
         ### define projection network ###
         if not self.opt.skip_projection:
-            nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.backbone_dim
+            nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder_dim
             from models.projection_networks import ProjectionMLP
             self.projection_net = ProjectionMLP(
                                     input_feature_len=nonproj_len, 
@@ -108,11 +108,11 @@ class ViTDINOSegNet(BaseSegNet):
 
     def extract_features(self, x: torch.Tensor, use_deep_features: bool = False, masks: torch.Tensor = None) -> torch.Tensor:
         """ 
-        extract features from backbone 
+        extract features from encoder 
         input: x.shape = (batch_size, 3, H, W)
 
         if use_deep_features is True or self.opt.use_deep_features is True:
-        output: features.shape = [batch_size, (H//patch_size)*(W//patch_size), backbone_dim]
+        output: features.shape = [batch_size, (H//patch_size)*(W//patch_size), encoder_dim]
 
         else:
         output: features.shape = [batch_size, (H//patch_size)*(W//patch_size), intermediate_dim]
@@ -122,16 +122,16 @@ class ViTDINOSegNet(BaseSegNet):
 
         # we want grads if lora rank is not None or if train_vit is True
         if (self.opt.lora_rank is not None) or (self.opt.train_vit):
-            shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+            shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
         else:
-            print("no grad for vit")
+            print("no grad")
             with torch.no_grad():
-                shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+                shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
 
         if len(shallow_features.shape) == 3:
             bs, _, C = shallow_features.shape
             shallow_features = shallow_features.permute(0, 2, 1)      # [bs, C, N]
-            shallow_features = shallow_features.reshape(bs, C, H//self.backbone.patch_size, W//self.backbone.patch_size)
+            shallow_features = shallow_features.reshape(bs, C, H//self.encoder.patch_size, W//self.encoder.patch_size)
 
         if (self.opt.use_deep_features) or (use_deep_features):
             deep_features = self.decode_features(shallow_features, return_list=False)
@@ -147,45 +147,45 @@ class ViTDINOSegNet(BaseSegNet):
         H, W = x.shape[-2:]
         # we want grads if lora rank is not None or if train_vit is True
         if (self.opt.lora_rank is not None) or (self.opt.train_vit):
-            shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+            shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
         else:
-            print("no grad for vit")
+            print("no grad")
             with torch.no_grad():
-                shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+                shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
         if len(shallow_features.shape) == 3:
             bs, _, C = shallow_features.shape
             shallow_features = shallow_features.permute(0, 2, 1)      # [bs, C, N]
-            shallow_features = shallow_features.reshape(bs, C, H//self.backbone.patch_size, W//self.backbone.patch_size)
+            shallow_features = shallow_features.reshape(bs, C, H//self.encoder.patch_size, W//self.encoder.patch_size)
 
 
         # do this with the target branch, extract_m2f_output() is used in labelled task
         deep_features_list = self.decode_features(shallow_features, return_list=True, target=True)
 
-        output = self.decode_head.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
+        output = self.decoder.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
         output["pred_masks"] = F.interpolate(output["pred_masks"], size=(H, W), mode="bilinear", align_corners=False)
         return output
 
     
     def decode_features(self, x, return_list=True, target=False, query=False):
         """
-        decodes features from backbone
-        input: x.shape = [batch_size, (H//patch_size)*(W//patch_size)+1, backbone_dim]
+        decodes features from encoder
+        input: x.shape = [batch_size, (H//patch_size)*(W//patch_size)+1, encoder_dim]
         """
         if target and self.opt.proj_query_pup:
             if return_list:
-                return self.decode_head.target_pup(x)
+                return self.decoder.target_pup(x)
             else:
-                return self.decode_head.target_pup(x)[-1]
+                return self.decoder.target_pup(x)[-1]
         elif query and self.opt.proj_query_pup:
             if return_list:
-                return self.decode_head.query_pup(x)
+                return self.decoder.query_pup(x)
             else:
-                return self.decode_head.query_pup(x)[-1]
+                return self.decoder.query_pup(x)[-1]
         else:
             if return_list:
-                return self.decode_head.decoder_pup(x)
+                return self.decoder.decoder_pup(x)
             else:
-                return self.decode_head.decoder_pup(x)[-1]
+                return self.decoder.decoder_pup(x)[-1]
 
     def extract_proj_features(self, x, masks=None): 
         """ extract projected features """
@@ -206,20 +206,20 @@ class ViTDINOSegNet(BaseSegNet):
         H, W = x.shape[-2:]
         # we want grads if lora rank is not None or if train_vit is True
         if (self.opt.lora_rank is not None) or (self.opt.train_vit):
-            shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+            shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
         else:
-            print("no grad for vit")
+            print("no grad")
             with torch.no_grad():
-                shallow_features = self.backbone.forward_features(x, masks=masks)["x_norm_patchtokens"]
+                shallow_features = self.encoder.forward_features(x, masks=masks)["x_norm_patchtokens"]
         if len(shallow_features.shape) == 3:
             bs, _, C = shallow_features.shape
             shallow_features = shallow_features.permute(0, 2, 1)      # [bs, C, N]
-            shallow_features = shallow_features.reshape(bs, C, H//self.backbone.patch_size, W//self.backbone.patch_size)
+            shallow_features = shallow_features.reshape(bs, C, H//self.encoder.patch_size, W//self.encoder.patch_size)
 
 
         deep_features_list = self.decode_features(shallow_features, return_list=True, target=target, query=query)
 
-        output = self.decode_head.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
+        output = self.decoder.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
         if high_res:
             output["pred_masks"] = F.interpolate(output["pred_masks"], size=(H, W), mode="bilinear", align_corners=False)
 
@@ -250,6 +250,8 @@ if __name__ == "__main__":
     argparser.add_argument("--include_void", type=bool, default=False)
     argparser.add_argument("--use_deep_features", type=bool, default=False)
     argparser.add_argument("--intermediate_dim", type=int, default=256)
+    argparser.add_argument("--skip_projection", type=bool, default=False)
+    argparser.add_argument("--proj_query_pup", type=bool, default=False)
     argparser.add_argument("--prototype_len", type=int, default=256)
     argparser.add_argument("--decode_head", type=str, default="setr")
     argparser.add_argument("--vit_size", type=str, default="small")
@@ -260,6 +262,12 @@ if __name__ == "__main__":
     seg_net.eval()
 
     x = torch.randn(1, 3, 224, 224)
+
+    output = seg_net.extract_features(x)
+    print(output.shape)
+
+    output = seg_net.extract_proj_features(x)
+    print(output.shape)
 
     output = seg_net.extract_m2f_output(x)
 

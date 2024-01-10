@@ -429,7 +429,7 @@ class GammaSSLLosses:
     ######################################################################################################################################################
 
     ######################################################################################################################################################
-    def calculate_sup_loss(self, labelled_seg_masks, labelled_seg_masks_proto, labels, labelled_crop_boxes_A):
+    def calculate_sup_loss(self, labelled_seg_masks, labels, labelled_crop_boxes_A):
         sup_metrics = {}
 
         ### supervised loss ###
@@ -438,9 +438,6 @@ class GammaSSLLosses:
         sup_loss = self.sup_xent_loss_fn(labelled_seg_masks, labels)
         sup_loss = sup_loss.mean()
 
-        if labelled_seg_masks_proto is not None:
-            sup_loss += self.sup_xent_loss_fn(labelled_seg_masks_proto/self.opt.temperature, labels).mean()
-            sup_loss = sup_loss / 2
 
         with torch.no_grad():
             ### supervised metrics ###
@@ -448,10 +445,6 @@ class GammaSSLLosses:
             # the supervised loss function is calculated over void class as well -> include in metric
             sup_metrics["labelled_miou"] = calculate_miou(labelled_segs, labels, num_classes=self.num_known_classes+1)
             sup_metrics["labelled_accuracy"] = torch.eq(labelled_segs, labels).float().mean()
-            if labelled_seg_masks_proto is not None:
-                labelled_segs_proto = torch.argmax(labelled_seg_masks_proto, dim=1)
-                sup_metrics["labelled_miou_proto"] = calculate_miou(labelled_segs_proto, labels, num_classes=self.num_known_classes+1)
-                sup_metrics["labelled_accuracy_proto"] = torch.eq(labelled_segs_proto, labels).float().mean()
         return sup_loss, sup_metrics
     ######################################################################################################################################################
 

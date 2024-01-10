@@ -20,7 +20,14 @@ parser = argparse.ArgumentParser()
 ### ###
 parser.add_argument('--gamma_reject_prop', type=float, default=0.5)
 ### objective opts ###
-parser.add_argument('--data_aug', type=str, default="candr")
+parser.add_argument('--mask_input', type=str2bool, default=False)
+parser.add_argument('--use_proto_seg', type=str2bool, default=False)
+parser.add_argument('--train_encoder', type=str2bool, default=False)
+parser.add_argument('--model_arch', type=str, default="dino_repo_m2f")
+
+
+
+
 parser.add_argument('--no_colour', type=str2bool, default=False)
 parser.add_argument('--use_sax_png_dataset', type=str2bool, default=False)
 parser.add_argument('--val_batch_size', type=int, default=None)
@@ -151,14 +158,14 @@ parser.add_argument("--no_filtering", type=str2bool, default=False, help="M_gamm
 parser.add_argument("--use_resize_noise", type=str2bool, default=True)
 parser.add_argument("--uniformity_kernel_size", type=int, default=4)
 parser.add_argument("--uniformity_stride", type=int, default=4)
-parser.add_argument("--include_void", type=str2bool, default=True, help="Whether to compute supervised loss on void pixels")
+parser.add_argument("--include_void", type=str2bool, default=False, help="Whether to compute supervised loss on void pixels")
 ### validation ###
 parser.add_argument("--max_uncertainty", type=float, default=1)
 parser.add_argument("--threshold_type", type=str, default="linear", help="linear, scaled or log")
 parser.add_argument("--num_thresholds", type=int, default=500)
 ### learning rates ###
 parser.add_argument('--lr', type=float, default=5e-4)
-parser.add_argument('--lr_backbone', type=float, default=None)
+parser.add_argument('--lr_encoder', type=float, default=None)
 parser.add_argument('--warmup_ratio', type=float, default=None)
 parser.add_argument('--n_warmup_iters', type=int, default=None)
 parser.add_argument('--lr_policy', type=str, default=None)
@@ -229,7 +236,7 @@ parser.add_argument('--prototypes_path', type=str,  default=None)
 
 opt = parser.parse_args()
 if opt.use_cpu:
-    # opt.batch_size = 2
+    opt.batch_size = 2
     opt.num_workers = 0
     opt.cityscapes_dataroot = "/Users/dw/data/"
     opt.unlabelled_dataroot = "/Users/dw/data/bdd100k"
@@ -237,7 +244,7 @@ if opt.use_cpu:
     opt.sax_raw_dataroot = "/Users/dw/data/sax_raw"
     opt.sax_labelled_dataroot = "/Users/dw/data/sax_labelled"
     opt.sensor_models_path = "/Users/dw/code/lut/sensor-models"
-print(opt)
+# print(opt)
 ########################################################################
 
 
