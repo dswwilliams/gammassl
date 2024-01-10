@@ -29,13 +29,8 @@ class SegmentationModel(nn.Module):
         self.num_known_classes = len(known_class_list)
         self.crop_size = crop_size
 
-        # if self.opt.encoder == "dino_repo":
-        #     from models.vit_dino_repo_seg_net import ViTDINOSegNet as SegNet
-
-
-        # TODO make sure these can be used interchangeably
-        if self.opt.model_arch == "dino_repo_m2f":
-            from models.vit_dino_repo_m2f_seg_net import ViTDINOSegNet as SegNet
+        if self.opt.model_arch == "vit_m2f":
+            from models.vit_m2f_seg_net import ViT_M2F_SegNet as SegNet
         elif self.opt.model_arch == "deeplab":
             from models.deeplab_seg_net import DeepLabSegNet as SegNet
 
