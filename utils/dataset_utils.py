@@ -106,13 +106,13 @@ def get_img_size_from_aspect_ratio(aspect_ratio, patch_size=None):
     # height of imgs are set to 480, width is scaled accordingly
     new_H = 480
     # set width to be divisible by 2*patch_size
-    resize_H = int(new_H/(2*patch_size)) * (2*patch_size)
+    resize_H = int(new_H/(2*patch_size)) * int(2*patch_size)
     # scale width accord to aspect ratio
     resize_W  = int(np.round(resize_H * (aspect_ratio[1]/aspect_ratio[0])))
     resize_sizes = (resize_H, resize_W)
 
     # set width to be divisible by patch_size
-    crop_W = int(resize_W/(2*patch_size)) * (2*patch_size)
+    crop_W = int(resize_W/(2*patch_size)) * int(2*patch_size)
     crop_H = resize_H
     crop_sizes = (crop_H, crop_W)
 

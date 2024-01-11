@@ -173,7 +173,11 @@ class BaseTrainer():
 
                         # log quantitative results
                         for dataset in self.val_datasets:
-                            self.validator.validate_uncertainty_estimation(dataset, self.model, self.full_validation_count)
+                            self.validator.validate_uncertainty_estimation(
+                                                                val_dataset=dataset, 
+                                                                model=self.model, 
+                                                                full_validation_count=self.full_validation_count,
+                                                                )
                         if (self.full_validation_count % self.opt.save_every == 0):
                             self.save_model()
                         self.full_validation_count += 1

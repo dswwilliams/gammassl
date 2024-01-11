@@ -6,16 +6,10 @@ import numpy as np
 import wandb
 import cv2
 import copy
-from utils.validation_utils import init_val_ue_metrics, perform_batch_ue_validation, perform_batch_seg_validation, init_val_seg_metrics
-# from utils.validation_utils import perform_batch_ue_validation_consistency, init_val_ue_metrics_consistency, perform_batch_ue_validation_soft_consistency
-from utils.validation_utils import update_running_variable, plot_val_ue_metrics_to_tensorboard, plot_val_seg_metrics_to_tensorboard
-# from utils.validation_utils import plot_val_ue_metrics_to_tensorboard_consistency
-from utils.device_utils import to_device
+from utils.validation_utils import init_val_ue_metrics, perform_batch_ue_validation
+from utils.validation_utils import plot_val_ue_metrics
 
-from utils.colourisation_utils import make_overlay
-from utils.crop_utils import crop_by_box_and_resize
-# from utils.misc_utils import swap_on_batch_dim
-# from utils.masking_utils import get_query_masks
+from utils.device_utils import to_device
 
 import copy
 from gammassl_losses import GammaSSLLosses
@@ -123,6 +117,58 @@ def calculate_accuracy(tp, tn, fp, fn):
 def calculate_p_accurate(tp, tn, fp, fn):
     accuracy = (tp+fn) / (tp + tn + fp + fn)
     return accuracy
+
+
+def calculate_metrics_suite(val_metrics_totals, val_metrics_counts):
+    processed_metrics = {}
+    
+    processed_metrics["precision"], processed_metrics["recall"] = calculate_precision_recall(
+                            tp=val_metrics_totals["n_accurate_and_certain"],
+                            tn=val_metrics_totals["n_uncertain_and_inaccurate"],
+                            fp=val_metrics_totals["n_inaccurate_and_certain"],
+                            fn=val_metrics_totals["n_uncertain_and_accurate"],
+                            )
+
+    processed_metrics["fhalf"] = calculate_fbeta_score(
+                    tp=val_metrics_totals["n_accurate_and_certain"],
+                    fp=val_metrics_totals["n_inaccurate_and_certain"],
+                    fn=val_metrics_totals["n_uncertain_and_accurate"],
+                    beta=0.5,
+                    )
+    processed_metrics["acc_md"] = calculate_accuracy(
+                    tp=val_metrics_totals["n_accurate_and_certain"],
+                    tn=val_metrics_totals["n_uncertain_and_inaccurate"],
+                    fp=val_metrics_totals["n_inaccurate_and_certain"],
+                    fn=val_metrics_totals["n_uncertain_and_accurate"],
+                    )
+
+    processed_metrics["p_certain"] = calculate_p_certain(
+                    tp=val_metrics_totals["n_accurate_and_certain"],
+                    tn=val_metrics_totals["n_uncertain_and_inaccurate"],
+                    fp=val_metrics_totals["n_inaccurate_and_certain"],
+                    fn=val_metrics_totals["n_uncertain_and_accurate"],
+                    )
+    processed_metrics["p_accurate"] = calculate_p_accurate(
+                    tp=val_metrics_totals["n_accurate_and_certain"],
+                    tn=val_metrics_totals["n_uncertain_and_inaccurate"],
+                    fp=val_metrics_totals["n_inaccurate_and_certain"],
+                    fn=val_metrics_totals["n_uncertain_and_accurate"],
+                    )
+    
+    mean_stats = calculate_mean_stats(
+                            n_accurate_and_certain=val_metrics_totals["n_accurate_and_certain"],
+                            n_uncertain_and_inaccurate=val_metrics_totals["n_uncertain_and_inaccurate"],
+                            n_inaccurate_and_certain=val_metrics_totals["n_inaccurate_and_certain"],
+                            n_uncertain_and_accurate=val_metrics_totals["n_uncertain_and_accurate"],
+                            )
+    processed_metrics["mean_accurate_and_certain"] = mean_stats["mean_accurate_and_certain"]
+    processed_metrics["mean_uncertain_and_inaccurate"] = mean_stats["mean_uncertain_and_inaccurate"]
+    processed_metrics["mean_inaccurate_and_certain"] = mean_stats["mean_inaccurate_and_certain"]
+    processed_metrics["mean_uncertain_and_accurate"] = mean_stats["mean_uncertain_and_accurate"]
+
+    processed_metrics["miou"] = val_metrics_totals["miou"] / val_metrics_counts["miou"]
+
+    return processed_metrics
 
 class Validator():
     def __init__(self, opt, class_labels, writer=None, device=None):
@@ -540,81 +586,28 @@ class Validator():
 
     ######################################################################################################################################################
     @torch.no_grad()
-    def validate_uncertainty_estimation(self, val_dataset, model, full_validation_count, training_it_count, masking_model=None):
+    def validate_uncertainty_estimation(self, val_dataset, model, full_validation_count):
         print("\nValidating uncertainty estimation on", val_dataset.name)
         device = next(model.parameters()).device
 
         ### init ###
-        val_metrics_totals, val_metrics_counts = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
-        if self.opt.output_rank_metrics:
-            val_metrics_totals_rank, val_metrics_counts_rank = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
-            # remove the key, value for "miou"
-            del val_metrics_totals_rank["miou"]
+        val_metrics_totals_query, val_metrics_counts_query = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
+        val_metrics_totals_target, val_metrics_counts_target = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
 
-        val_metrics_totals_seg_head, val_metrics_counts_seg_head = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
-        val_metrics_totals_consistency, val_metrics_counts_consistency = init_val_ue_metrics_consistency(1, counts=True)
-
-        val_metrics_totals_soft_consistency = copy.deepcopy(val_metrics_totals_seg_head)
-        val_metrics_counts_soft_consistency = copy.deepcopy(val_metrics_counts_seg_head)
-
-        if self.opt.run_masking_task or self.opt.run_sup_masking_training or self.opt.run_sup_task_only:
+        if self.opt.mask_input:
             from utils.collation_utils import get_val_collate_fn
-            if val_dataset.name == "CityscapesVal":
-                if self.opt.use_dinov1:
-                    img_size = (480, 960)
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 952)
-                    PATCH_SIZE = 14
-            elif "SAX" in val_dataset.name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 640)
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 616)
-                    PATCH_SIZE = 14
-            elif "BDD" in val_dataset.name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 832)
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 840)
-                    PATCH_SIZE = 14
-            else:
-                if self.opt.use_dinov1:
-                    img_size = 256
-                    PATCH_SIZE = 16
-                else:
-                    img_size = 224
-                    PATCH_SIZE = 14
-            print(f"collate_fn, img_size: {img_size}")
-            
-            if self.opt.mask_prob_schedule == "linear" or self.opt.mask_prob_schedule == "sinusoidal":
-                # redefine random mask prob using self.mask_prob_schedule_fn
-                val_collate_fn = get_val_collate_fn(
-                                        img_size=img_size, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.mask_prob_schedule_fn(training_it_count), 
-                                        t_and_q_masks=self.opt.mask_both,
-                                        min_mask_prob=None, 
-                                        max_mask_prob=None,
-                                        )
-            else:
-                val_collate_fn = get_val_collate_fn(
-                                        img_size=img_size, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.opt.random_mask_prob, 
-                                        t_and_q_masks=self.opt.mask_both,
-                                        min_mask_prob=self.opt.min_mask_prob, 
-                                        max_mask_prob=self.opt.max_mask_prob,
-                                        )
+            val_collate_fn = get_val_collate_fn(
+                                    img_size=val_dataset.crop_sizes, 
+                                    patch_size=model.patch_size, 
+                                    random_mask_prob=self.opt.random_mask_prob, 
+                                    t_and_q_masks=self.opt.mask_both,
+                                    min_mask_prob=self.opt.min_mask_prob, 
+                                    max_mask_prob=self.opt.max_mask_prob,
+                                    )
         else:
             val_collate_fn = None
 
-        if self.opt.val_batch_size is not None:
-            _batch_size = self.opt.val_batch_size
-        else:
-            _batch_size = self.opt.batch_size
+        _batch_size = self.opt.val_batch_size if self.opt.val_batch_size is not None else self.opt.batch_size
         full_val_dataloader = torch.utils.data.DataLoader(
                                                     dataset=val_dataset, 
                                                     batch_size=_batch_size, 
@@ -627,386 +620,47 @@ class Validator():
         ### calculate certainty metrics ###
         iterator = tqdm(full_val_dataloader)
 
-        if self.opt.threshold_type == "scaled":
-            global_thresholds = torch.linspace(0, (self.opt.num_thresholds-1), self.opt.num_thresholds).long().to(device)
-        else:
-            global_thresholds = None
-
         for step, (val_dict) in enumerate(iterator):
             val_imgs = to_device(val_dict["img"], device)
             val_labels = to_device(val_dict["label"], device)
-            if self.opt.mask_both:
-                val_masks = to_device(val_dict["mask_q"], device)
-                val_masks_t = to_device(val_dict["mask_t"], device)
-            else:
-                val_masks = to_device(val_dict["mask"], device)
-                val_masks_t = None
 
-            if masking_model is not None:
-                # we dont necessarily have bool mask -> this breaks: perform_batch_ue_validation_consistency
-                val_metrics_consistency = None
-            else:
-                val_metrics_consistency = perform_batch_ue_validation_consistency(
-                                                    val_imgs, 
-                                                    val_labels,
-                                                    val_masks,
-                                                    model,
-                                                    self.opt,
-                                                    global_thresholds=global_thresholds,
-                                                    writer=self.writer,
-                                                    branch="query",
-                                                    val_masks_t=val_masks_t,
-                                                    masking_model=masking_model,
-                                                    )
+            # calculate ue metrics
+            val_metrics_query = perform_batch_ue_validation(
+                                                val_imgs, 
+                                                val_labels,
+                                                model,
+                                                self.opt,
+                                                branch="query",
+                                                )
             
-            if self.opt.val_soft_consistency:
-                val_metrics_soft_consistency = perform_batch_ue_validation_soft_consistency(
-                                                                            val_imgs, 
-                                                                            val_labels,
-                                                                            val_masks,
-                                                                            model,
-                                                                            self.opt,
-                                                                            global_thresholds=global_thresholds,
-                                                                            writer=self.writer,
-                                                                            branch="query",
-                                                                            step=step,
-                                                                            dataset_name=val_dataset.name,
-                                                                            output_rank_metrics=self.opt.output_rank_metrics,
-                                                                            soft_consistency_fn=self.opt.soft_consistency_fn,
-                                                                            )
+            val_metrics_target = perform_batch_ue_validation(
+                                                val_imgs, 
+                                                val_labels,
+                                                model,
+                                                self.opt,
+                                                branch="target",
+                                                )
 
-            
-            if not self.opt.val_only_consistency:
-                # calculate ue metrics
-                val_metrics, local_thresholds, val_metrics_rank = perform_batch_ue_validation(
-                                                                        val_imgs, 
-                                                                        val_labels,
-                                                                        model,
-                                                                        self.opt,
-                                                                        global_thresholds=global_thresholds,
-                                                                        writer=self.writer,
-                                                                        branch="query",
-                                                                        step=step,
-                                                                        dataset_name=val_dataset.name,
-                                                                        output_rank_metrics=self.opt.output_rank_metrics,
-                                                                        )
+            for key in val_metrics_totals_query:
+                val_metrics_totals_query[key] += val_metrics_query[key].sum(0).cpu()
+                if len(val_metrics_query[key].shape) > 0:
+                    val_metrics_counts_query[key] += val_metrics_query[key].shape[0]
+                else:
+                    val_metrics_counts_query[key] += 1
 
-                
-                val_metrics_seg_head, local_thresholds, _ = perform_batch_ue_validation(
-                                                    val_imgs, 
-                                                    val_labels,
-                                                    model,
-                                                    self.opt,
-                                                    global_thresholds=global_thresholds,
-                                                    writer=self.writer,
-                                                    branch="target",
-                                                    )
-
-
-
-                for key in val_metrics_totals:
-                    val_metrics_totals[key] += val_metrics[key].sum(0).cpu()
-                    if len(val_metrics[key].shape) > 0:
-                        val_metrics_counts[key] += val_metrics[key].shape[0]
-                    else:
-                        val_metrics_counts[key] += 1
-                
-                if self.opt.output_rank_metrics:
-                    for key in val_metrics_totals_rank:
-                        val_metrics_totals_rank[key] += val_metrics_rank[key].sum(0).cpu()
-                        if len(val_metrics_rank[key].shape) > 0:
-                            val_metrics_counts_rank[key] += val_metrics_rank[key].shape[0]
-                        else:
-                            val_metrics_counts_rank[key] += 1
-
-                for key in val_metrics_totals_seg_head:
-                    val_metrics_totals_seg_head[key] += val_metrics_seg_head[key].sum(0).cpu()
-                    if len(val_metrics_seg_head[key].shape) > 0:
-                        val_metrics_counts_seg_head[key] += val_metrics_seg_head[key].shape[0]
-                    else:
-                        val_metrics_counts_seg_head[key] += 1
-
-            if val_metrics_consistency is not None:
-                for key in val_metrics_totals_consistency:
-                    val_metrics_totals_consistency[key] += val_metrics_consistency[key].sum(0).cpu()
-                    if len(val_metrics_consistency[key].shape) > 0:
-                        val_metrics_counts_consistency[key] += val_metrics_consistency[key].shape[0]
-                    else:
-                        val_metrics_counts_consistency[key] += 1
-
-            if self.opt.val_soft_consistency:
-                for key in val_metrics_soft_consistency:
-                    val_metrics_totals_soft_consistency[key] += val_metrics_soft_consistency[key].sum(0).cpu()
-                    if len(val_metrics_soft_consistency[key].shape) > 0:
-                        val_metrics_counts_soft_consistency[key] += val_metrics_soft_consistency[key].shape[0]
-                    else:
-                        val_metrics_counts_soft_consistency[key] += 1
-                
-
+            for key in val_metrics_totals_target:
+                val_metrics_totals_target[key] += val_metrics_target[key].sum(0).cpu()
+                if len(val_metrics_target[key].shape) > 0:
+                    val_metrics_counts_target[key] += val_metrics_target[key].shape[0]
+                else:
+                    val_metrics_counts_target[key] += 1
             ### end of validation loop ###
-        ### 4) output results to tensorboard ###
-        if not self.opt.val_only_consistency:
-            processed_metrics = {}
-            processed_metrics["precision"], processed_metrics["recall"] = calculate_precision_recall(
-                                    tp=val_metrics_totals["n_accurate_and_certain"],
-                                    tn=val_metrics_totals["n_uncertain_and_inaccurate"],
-                                    fp=val_metrics_totals["n_inaccurate_and_certain"],
-                                    fn=val_metrics_totals["n_uncertain_and_accurate"],
-                                    )
 
-            processed_metrics["fhalf"] = calculate_fbeta_score(
-                            tp=val_metrics_totals["n_accurate_and_certain"],
-                            fp=val_metrics_totals["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals["n_uncertain_and_accurate"],
-                            beta=0.5,
-                            )
-            processed_metrics["acc_md"] = calculate_accuracy(
-                            tp=val_metrics_totals["n_accurate_and_certain"],
-                            tn=val_metrics_totals["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals["n_uncertain_and_accurate"],
-                            )
-
-            processed_metrics["p_certain"] = calculate_p_certain(
-                            tp=val_metrics_totals["n_accurate_and_certain"],
-                            tn=val_metrics_totals["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals["n_uncertain_and_accurate"],
-                            )
-            processed_metrics["p_accurate"] = calculate_p_accurate(
-                            tp=val_metrics_totals["n_accurate_and_certain"],
-                            tn=val_metrics_totals["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals["n_uncertain_and_accurate"],
-                            )
-            
-            mean_stats = calculate_mean_stats(
-                                    n_accurate_and_certain=val_metrics_totals["n_accurate_and_certain"],
-                                    n_uncertain_and_inaccurate=val_metrics_totals["n_uncertain_and_inaccurate"],
-                                    n_inaccurate_and_certain=val_metrics_totals["n_inaccurate_and_certain"],
-                                    n_uncertain_and_accurate=val_metrics_totals["n_uncertain_and_accurate"],
-                                    )
-            processed_metrics["mean_accurate_and_certain"] = mean_stats["mean_accurate_and_certain"]
-            processed_metrics["mean_uncertain_and_inaccurate"] = mean_stats["mean_uncertain_and_inaccurate"]
-            processed_metrics["mean_inaccurate_and_certain"] = mean_stats["mean_inaccurate_and_certain"]
-            processed_metrics["mean_uncertain_and_accurate"] = mean_stats["mean_uncertain_and_accurate"]
-
-            processed_metrics["miou"] = val_metrics_totals["miou"] / val_metrics_counts["miou"]
-            
-            if self.opt.output_rank_metrics:
-                processed_metrics_rank = {}
-                processed_metrics_rank["precision"], processed_metrics_rank["recall"] = calculate_precision_recall(
-                                                                                                    tp=val_metrics_totals_rank["n_accurate_and_certain"],
-                                                                                                    tn=val_metrics_totals_rank["n_uncertain_and_inaccurate"],
-                                                                                                    fp=val_metrics_totals_rank["n_inaccurate_and_certain"],
-                                                                                                    fn=val_metrics_totals_rank["n_uncertain_and_accurate"],
-                                                                                                    )
-
-                processed_metrics_rank["fhalf"] = calculate_fbeta_score(
-                                tp=val_metrics_totals_rank["n_accurate_and_certain"],
-                                fp=val_metrics_totals_rank["n_inaccurate_and_certain"],
-                                fn=val_metrics_totals_rank["n_uncertain_and_accurate"],
-                                beta=0.5,
-                                )
-                processed_metrics_rank["acc_md"] = calculate_accuracy(
-                                tp=val_metrics_totals_rank["n_accurate_and_certain"],
-                                tn=val_metrics_totals_rank["n_uncertain_and_inaccurate"],
-                                fp=val_metrics_totals_rank["n_inaccurate_and_certain"],
-                                fn=val_metrics_totals_rank["n_uncertain_and_accurate"],
-                                )
-
-                processed_metrics_rank["p_certain"] = calculate_p_certain(
-                                tp=val_metrics_totals_rank["n_accurate_and_certain"],
-                                tn=val_metrics_totals_rank["n_uncertain_and_inaccurate"],
-                                fp=val_metrics_totals_rank["n_inaccurate_and_certain"],
-                                fn=val_metrics_totals_rank["n_uncertain_and_accurate"],
-                                )
-                processed_metrics_rank["p_accurate"] = calculate_p_accurate(
-                                tp=val_metrics_totals_rank["n_accurate_and_certain"],
-                                tn=val_metrics_totals_rank["n_uncertain_and_inaccurate"],
-                                fp=val_metrics_totals_rank["n_inaccurate_and_certain"],
-                                fn=val_metrics_totals_rank["n_uncertain_and_accurate"],
-                                )
-
-            processed_metrics_seg_head = {}
-            processed_metrics_seg_head["precision"], processed_metrics_seg_head["recall"] = calculate_precision_recall(
-                                    tp=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                                    tn=val_metrics_totals_seg_head["n_uncertain_and_inaccurate"],
-                                    fp=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                                    fn=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                                    )
-
-            processed_metrics_seg_head["fhalf"] = calculate_fbeta_score(
-                            tp=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                            fp=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                            beta=0.5,
-                            )
-            processed_metrics_seg_head["acc_md"] = calculate_accuracy(
-                            tp=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                            tn=val_metrics_totals_seg_head["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                            )
-
-            processed_metrics_seg_head["p_certain"] = calculate_p_certain(
-                            tp=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                            tn=val_metrics_totals_seg_head["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                            )
-            processed_metrics_seg_head["p_accurate"] = calculate_p_accurate(
-                            tp=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                            tn=val_metrics_totals_seg_head["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                            )
-
-            mean_stats = calculate_mean_stats(
-                                    n_accurate_and_certain=val_metrics_totals_seg_head["n_accurate_and_certain"],
-                                    n_uncertain_and_inaccurate=val_metrics_totals_seg_head["n_uncertain_and_inaccurate"],
-                                    n_inaccurate_and_certain=val_metrics_totals_seg_head["n_inaccurate_and_certain"],
-                                    n_uncertain_and_accurate=val_metrics_totals_seg_head["n_uncertain_and_accurate"],
-                                    )
-            processed_metrics_seg_head["mean_accurate_and_certain"] = mean_stats["mean_accurate_and_certain"]
-            processed_metrics_seg_head["mean_uncertain_and_inaccurate"] = mean_stats["mean_uncertain_and_inaccurate"]
-            processed_metrics_seg_head["mean_inaccurate_and_certain"] = mean_stats["mean_inaccurate_and_certain"]
-            processed_metrics_seg_head["mean_uncertain_and_accurate"] = mean_stats["mean_uncertain_and_accurate"]
-
-            processed_metrics_seg_head["miou"] = val_metrics_totals_seg_head["miou"] / val_metrics_counts_seg_head["miou"]
+        ### calculate metrics over dataset ###
+        processed_metrics_query = calculate_metrics_suite(val_metrics_totals_query, val_metrics_counts_query)
+        processed_metrics_target = calculate_metrics_suite(val_metrics_totals_target, val_metrics_counts_target)
         
-        if val_metrics_consistency is not None:
-            processed_metrics_consistency = {}
-            processed_metrics_consistency["precision"], processed_metrics_consistency["recall"] = calculate_precision_recall(
-                                    tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                                    tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                                    fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                                    fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                                    )
-
-            processed_metrics_consistency["fhalf_masked"] = calculate_fbeta_score(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"],
-                            beta=0.5,
-                            )
-            processed_metrics_consistency["fhalf_unmasked"] = calculate_fbeta_score(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            beta=0.5,
-                            )
-            processed_metrics_consistency["fhalf"] = calculate_fbeta_score(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            beta=0.5,
-                            )
-
-            
-            processed_metrics_consistency["acc_md_masked"] = calculate_accuracy(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"],
-                            )
-            processed_metrics_consistency["acc_md_unmasked"] = calculate_accuracy(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-            
-            processed_metrics_consistency["acc_md"] = calculate_accuracy(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-
-
-            processed_metrics_consistency["p_certain_masked"] = calculate_p_certain(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"],
-                            )
-            processed_metrics_consistency["p_certain_unmasked"] = calculate_p_certain(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-            processed_metrics_consistency["p_certain"] = calculate_p_certain(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-            
-            processed_metrics_consistency["p_accurate_masked"] = calculate_p_accurate(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"],
-                            )
-            processed_metrics_consistency["p_accurate_unmasked"] = calculate_p_accurate(
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-            processed_metrics_consistency["p_accurate"] = calculate_p_accurate( 
-                            tp=val_metrics_totals_consistency["n_accurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_accurate_and_certain_and_unmasked"],
-                            tn=val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_inaccurate_and_unmasked"],
-                            fp=val_metrics_totals_consistency["n_inaccurate_and_certain_and_masked"]+val_metrics_totals_consistency["n_inaccurate_and_certain_and_unmasked"],
-                            fn=val_metrics_totals_consistency["n_uncertain_and_accurate_and_masked"]+val_metrics_totals_consistency["n_uncertain_and_accurate_and_unmasked"],
-                            )
-        
-        if self.opt.val_soft_consistency:
-            processed_metrics_soft_consistency = {}
-            processed_metrics_soft_consistency["precision"], processed_metrics_soft_consistency["recall"] = calculate_precision_recall(
-                                    tp=val_metrics_totals_soft_consistency["n_accurate_and_certain"],
-                                    tn=val_metrics_totals_soft_consistency["n_uncertain_and_inaccurate"],
-                                    fp=val_metrics_totals_soft_consistency["n_inaccurate_and_certain"],
-                                    fn=val_metrics_totals_soft_consistency["n_uncertain_and_accurate"],
-                                    )
-
-            processed_metrics_soft_consistency["fhalf"] = calculate_fbeta_score(
-                            tp=val_metrics_totals_soft_consistency["n_accurate_and_certain"],
-                            fp=val_metrics_totals_soft_consistency["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_soft_consistency["n_uncertain_and_accurate"],
-                            beta=0.5,
-                            )
-            processed_metrics_soft_consistency["acc_md"] = calculate_accuracy(
-                            tp=val_metrics_totals_soft_consistency["n_accurate_and_certain"],
-                            tn=val_metrics_totals_soft_consistency["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_soft_consistency["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_soft_consistency["n_uncertain_and_accurate"],
-                            )
-
-            processed_metrics_soft_consistency["p_certain"] = calculate_p_certain(
-                            tp=val_metrics_totals_soft_consistency["n_accurate_and_certain"],
-                            tn=val_metrics_totals_soft_consistency["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_soft_consistency["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_soft_consistency["n_uncertain_and_accurate"],
-                            )
-            processed_metrics_soft_consistency["p_accurate"] = calculate_p_accurate(
-                            tp=val_metrics_totals_soft_consistency["n_accurate_and_certain"],
-                            tn=val_metrics_totals_soft_consistency["n_uncertain_and_inaccurate"],
-                            fp=val_metrics_totals_soft_consistency["n_inaccurate_and_certain"],
-                            fn=val_metrics_totals_soft_consistency["n_uncertain_and_accurate"],
-                            )
-            processed_metrics_soft_consistency["miou"] = val_metrics_totals_soft_consistency["miou"] / val_metrics_counts_seg_head["miou"]
-        
-        print(f"plotting metrics to tensorboard: {val_dataset.name}") 
-        if not self.opt.val_only_consistency:
-            plot_val_ue_metrics_to_tensorboard(processed_metrics, self.writer, full_validation_count, dataset_name=val_dataset.name, plot_plots=True)
-            plot_val_ue_metrics_to_tensorboard(processed_metrics_seg_head, self.writer, full_validation_count, dataset_name=val_dataset.name+" (SEG HEAD)", plot_plots=False)
-            if self.opt.output_rank_metrics:
-                plot_val_ue_metrics_to_tensorboard(processed_metrics_rank, self.writer, full_validation_count, dataset_name=val_dataset.name+" (Ranked)", plot_plots=False)
-        if val_metrics_consistency is not None:
-            plot_val_ue_metrics_to_tensorboard_consistency(processed_metrics_consistency, self.writer, full_validation_count, dataset_name=val_dataset.name+" (Consistency)", plot_plots=True)
-        if self.opt.val_soft_consistency:
-            plot_val_ue_metrics_to_tensorboard(processed_metrics_soft_consistency, self.writer, full_validation_count, dataset_name=val_dataset.name+" (Soft Consistency)", plot_plots=True)
+        ### plotting metrics to wandb ###
+        plot_val_ue_metrics(processed_metrics_query, full_validation_count, dataset_name=val_dataset.name+" (Query)", plot_plots=False)
+        plot_val_ue_metrics(processed_metrics_target, full_validation_count, dataset_name=val_dataset.name+" (Target)", plot_plots=False)
     ######################################################################################################################################################
