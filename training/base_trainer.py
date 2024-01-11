@@ -6,8 +6,8 @@ from tqdm import tqdm
 import random
 import wandb
 sys.path.append("../")
-# from datasets.cityscapes_val import CityscapesValDataset
-# from datasets.sax_test_datasets import SAXLondonDataset, SAXNewForestDataset, SAXScotlandDataset
+from datasets.cityscapes_val import CityscapesValDataset
+from datasets.bdd_val import BDDValDataset
 from utils.device_utils import get_lr
 
 class BaseTrainer():
@@ -126,35 +126,26 @@ class BaseTrainer():
         self.validator = Validator(opt=self.opt, class_labels=self.known_class_list)
 
         self.val_datasets = []
-        cityscapes_val_dataset = CityscapesValDataset(self.opt.cityscapes_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
+        cityscapes_val_dataset = CityscapesValDataset(
+                                            self.opt.cityscapes_dataroot, 
+                                            use_dino=self.opt.use_dino, 
+                                            use_imagenet_norm=self.opt.use_imagenet_norm, 
+                                            use_dinov1=self.opt.use_dinov1,
+                                            )
         self.val_datasets.append(cityscapes_val_dataset)
         self.validator.val_seg_idxs[cityscapes_val_dataset.name] = np.random.choice(len(cityscapes_val_dataset), self.opt.n_val_segs, replace=False)
-        if self.opt.sax_domain == "london":
-            sax_london_dataset = SAXLondonDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            self.val_datasets.append(sax_london_dataset)
-            self.validator.val_seg_idxs[sax_london_dataset.name] = np.random.choice(len(sax_london_dataset), self.opt.n_val_segs, replace=False)
-        elif self.opt.sax_domain == "new-forest":
-            sax_new_forest_dataset = SAXNewForestDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            self.val_datasets.append(sax_new_forest_dataset)
-            self.validator.val_seg_idxs[sax_new_forest_dataset.name] = np.random.choice(len(sax_new_forest_dataset), self.opt.n_val_segs, replace=False)
-        elif self.opt.sax_domain == "scotland":
-            sax_scotland_dataset = SAXScotlandDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            self.val_datasets.append(sax_scotland_dataset)
-            self.validator.val_seg_idxs[sax_scotland_dataset.name] = np.random.choice(len(sax_scotland_dataset), self.opt.n_val_segs, replace=False)
 
-        if self.opt.val_all_sax:
-            # london
-            sax_london_dataset = SAXLondonDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            self.val_datasets.append(sax_london_dataset)
-            self.validator.val_seg_idxs[sax_london_dataset.name] = np.random.choice(len(sax_london_dataset), self.opt.n_val_segs, replace=False)
-            sax_new_forest_dataset = SAXNewForestDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            # new forest
-            self.val_datasets.append(sax_new_forest_dataset)
-            self.validator.val_seg_idxs[sax_new_forest_dataset.name] = np.random.choice(len(sax_new_forest_dataset), self.opt.n_val_segs, replace=False)
-            # scotland
-            sax_scotland_dataset = SAXScotlandDataset(self.opt.sax_labelled_dataroot, use_dino=self.opt.use_dino, use_imagenet_norm=self.opt.use_imagenet_norm, use_dinov1=self.opt.use_dinov1)
-            self.val_datasets.append(sax_scotland_dataset)
-            self.validator.val_seg_idxs[sax_scotland_dataset.name] = np.random.choice(len(sax_scotland_dataset), self.opt.n_val_segs, replace=False)
+        from datasets.bdd_val import BDDValDataset
+        bdd_val_dataset = BDDValDataset(
+                                self.opt.bdd_val_dataroot, 
+                                use_dino=self.opt.use_dino, 
+                                use_imagenet_norm=self.opt.use_imagenet_norm, 
+                                val_transforms=self.opt.val_transforms, 
+                                use_dinov1=self.opt.use_dinov1,
+                                )
+        self.val_datasets.append(bdd_val_dataset)
+        self.validator.val_seg_idxs[bdd_val_dataset.name] = np.random.choice(len(bdd_val_dataset), self.opt.n_val_segs, replace=False)
+
 
         for dataset in self.val_datasets:
             n_val_examples = len(dataset)
