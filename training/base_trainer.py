@@ -6,8 +6,7 @@ from tqdm import tqdm
 import random
 import wandb
 sys.path.append("../")
-from datasets.cityscapes_val import CityscapesValDataset
-from datasets.bdd_val import BDDValDataset
+from datasets.val_datasets import ValDataset
 from utils.device_utils import get_lr
 
 class BaseTrainer():
@@ -26,10 +25,6 @@ class BaseTrainer():
         
         # setting up logging of results
         wandb.init(project="test", config=self.opt)
-
-        # setting up crop size
-        ### TODO: if using vit dinov2, crop size is 224, and validation images need to be divisible by 14 (or 28) ###
-        self.crop_size = 224
         
         # init
         self.epoch = 0
@@ -37,7 +32,7 @@ class BaseTrainer():
         self.ssl_validation_count = 0
         self._init_device()
         self._init_model()
-        # self._init_validation()
+        self._init_validation()
         self._init_training_dataloader()
     ##########################################################################################################################################################
 
@@ -54,7 +49,7 @@ class BaseTrainer():
     ##########################################################################################################################################################
     def _init_model(self):
         from models.model import SegmentationModel
-        self.model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list, crop_size=self.crop_size)
+        self.model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list)
         if self.opt.save_path is not None:
             checkpoint = torch.load(self.opt.save_path, map_location=self.device)
             a = self.model.seg_net.backbone.load_state_dict(checkpoint['backbone'], strict=False)
@@ -66,6 +61,8 @@ class BaseTrainer():
                 self.model.seg_net.seg_head.load_state_dict(checkpoint['seg_head'])
             if self.model.seg_net.projection_net is not None:
                 self.model.seg_net.projection_net.load_state_dict(checkpoint['projection_net'])
+
+        self.crop_size = self.model.crop_size
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -94,8 +91,7 @@ class BaseTrainer():
                                     crop_size=self.crop_size,
                                     )
 
-        # TODO
-        # self.validator.train_seg_idxs = np.random.choice(len(self.dataset), self.opt.n_train_segs, replace=False)
+        self.validator.train_seg_idxs = np.random.choice(len(self.dataset), self.opt.n_train_segs, replace=False)
 
         # define collation function to implement masking if requested
         from utils.collation_utils import get_collate_fn
@@ -123,26 +119,26 @@ class BaseTrainer():
     ##########################################################################################################################################################
     def _init_validation(self):
         from validator import Validator
-        self.validator = Validator(opt=self.opt, class_labels=self.known_class_list)
+        self.validator = Validator(opt=self.opt, device=self.device, class_labels=self.known_class_list)
 
         self.val_datasets = []
-        cityscapes_val_dataset = CityscapesValDataset(
-                                            self.opt.cityscapes_dataroot, 
-                                            use_dino=self.opt.use_dino, 
-                                            use_imagenet_norm=self.opt.use_imagenet_norm, 
-                                            use_dinov1=self.opt.use_dinov1,
-                                            )
+        cityscapes_val_dataset = ValDataset(
+                                        name="CityscapesVal",
+                                        dataroot=self.opt.cityscapes_dataroot, 
+                                        use_imagenet_norm=self.opt.use_imagenet_norm, 
+                                        val_transforms=False,
+                                        patch_size=self.model.patch_size,
+                                        )
         self.val_datasets.append(cityscapes_val_dataset)
         self.validator.val_seg_idxs[cityscapes_val_dataset.name] = np.random.choice(len(cityscapes_val_dataset), self.opt.n_val_segs, replace=False)
 
-        from datasets.bdd_val import BDDValDataset
-        bdd_val_dataset = BDDValDataset(
-                                self.opt.bdd_val_dataroot, 
-                                use_dino=self.opt.use_dino, 
-                                use_imagenet_norm=self.opt.use_imagenet_norm, 
-                                val_transforms=self.opt.val_transforms, 
-                                use_dinov1=self.opt.use_dinov1,
-                                )
+        bdd_val_dataset = ValDataset(
+                            name="BDDVal",
+                            dataroot=self.opt.bdd_val_dataroot, 
+                            use_imagenet_norm=self.opt.use_imagenet_norm, 
+                            val_transforms=False,
+                            patch_size=self.model.patch_size,
+                            )
         self.val_datasets.append(bdd_val_dataset)
         self.validator.val_seg_idxs[bdd_val_dataset.name] = np.random.choice(len(bdd_val_dataset), self.opt.n_val_segs, replace=False)
 
@@ -166,7 +162,8 @@ class BaseTrainer():
                 if (self.it_count % self.opt.full_validation_every == 0):
                     self.model.model_to_eval()
                     if not self.opt.skip_validation:
-                        self.model.calculate_dataset_prototypes()
+                        if self.opt.use_proto_seg:
+                            self.model.calculate_dataset_prototypes()
 
                         # log qualitative results
                         self.validator.view_train_segmentations(train_dataset=self.dataset, model=self.model)

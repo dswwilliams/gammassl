@@ -92,3 +92,28 @@ def central_crop_img(img, output_shape, label=None):
         return img[h_start:h_start+new_h, w_start:w_start+new_w, :]
     else:
         return img[h_start:h_start+new_h, w_start:w_start+new_w, :], label[h_start:h_start+new_h, w_start:w_start+new_w]
+
+def get_img_size_from_aspect_ratio(aspect_ratio, patch_size=None):
+    """
+    aspect_ratio = (H,W) or is proportional to this
+    - preprocessing of imgs is a resize to the right scale (adjusting for patch size and keeping aspect ratio)
+    - then if required, a crop such that width is also divisible by patch size
+    """
+    if patch_size is None:
+        # now 2*patch_size and therefore patch size has no effect
+        patch_size = 0.5
+
+    # height of imgs are set to 480, width is scaled accordingly
+    new_H = 480
+    # set width to be divisible by 2*patch_size
+    resize_H = int(new_H/(2*patch_size)) * (2*patch_size)
+    # scale width accord to aspect ratio
+    resize_W  = int(np.round(resize_H * (aspect_ratio[1]/aspect_ratio[0])))
+    resize_sizes = (resize_H, resize_W)
+
+    # set width to be divisible by patch_size
+    crop_W = int(resize_W/(2*patch_size)) * (2*patch_size)
+    crop_H = resize_H
+    crop_sizes = (crop_H, crop_W)
+
+    return resize_sizes, crop_sizes

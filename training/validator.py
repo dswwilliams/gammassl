@@ -7,14 +7,15 @@ import wandb
 import cv2
 import copy
 from utils.validation_utils import init_val_ue_metrics, perform_batch_ue_validation, perform_batch_seg_validation, init_val_seg_metrics
-from utils.validation_utils import perform_batch_ue_validation_consistency, init_val_ue_metrics_consistency, perform_batch_ue_validation_soft_consistency
-from utils.validation_utils import update_running_variable, plot_val_ue_metrics_to_tensorboard, plot_val_seg_metrics_to_tensorboard, plot_val_ue_metrics_to_tensorboard_consistency
+# from utils.validation_utils import perform_batch_ue_validation_consistency, init_val_ue_metrics_consistency, perform_batch_ue_validation_soft_consistency
+from utils.validation_utils import update_running_variable, plot_val_ue_metrics_to_tensorboard, plot_val_seg_metrics_to_tensorboard
+# from utils.validation_utils import plot_val_ue_metrics_to_tensorboard_consistency
 from utils.device_utils import to_device
 
 from utils.colourisation_utils import make_overlay
 from utils.crop_utils import crop_by_box_and_resize
-from utils.misc_utils import swap_on_batch_dim
-from utils.masking_utils import get_query_masks
+# from utils.misc_utils import swap_on_batch_dim
+# from utils.masking_utils import get_query_masks
 
 import copy
 from gammassl_losses import GammaSSLLosses
@@ -141,23 +142,11 @@ class Validator():
 
         self.losses = GammaSSLLosses(self.opt, self.device, num_known_classes=len(self.class_labels))
 
-        if self.opt.mask_prob_schedule == "linear":
-            initial_mask_prob = self.opt.min_mask_prob
-            final_mask_prob = self.opt.max_mask_prob
-            # gives mask_prob for a given number of iterations
-            self.mask_prob_schedule_fn = lambda x: min(initial_mask_prob + (final_mask_prob - initial_mask_prob) * x / self.opt.mask_prob_total_iters, final_mask_prob)
-        elif self.opt.mask_prob_schedule == "sinusoidal":
-            initial_mask_prob = self.opt.min_mask_prob
-            final_mask_prob = self.opt.max_mask_prob
-            # so goes from initial_mask_prob to final_mask_prob and back to initial_mask_prob over mask_prob_total_iters iterations
-            self.mask_prob_schedule_fn = lambda x: min(initial_mask_prob + (final_mask_prob - initial_mask_prob) * np.sin(np.pi * x / self.opt.mask_prob_total_iters), final_mask_prob)
-
-
         self.val_seg_idxs = {}
 
     ######################################################################################################################################################
     @torch.no_grad()
-    def view_val_segmentations(self, val_dataset, model, training_it_count, masking_model=None):
+    def view_val_segmentations(self, val_dataset, model):
         device = next(model.parameters()).device
 
         dataset_name = val_dataset.name
@@ -167,53 +156,15 @@ class Validator():
         self.val_seg_idxs[dataset_name] = [int(idx) for idx in self.val_seg_idxs[dataset_name]]
         val_dataset = torch.utils.data.Subset(val_dataset, self.val_seg_idxs[dataset_name])
 
-        if self.opt.run_masking_task or self.opt.run_sup_masking_training:
+        if self.opt.mask_input:
             from utils.collation_utils import get_val_collate_fn
-            if dataset_name == "CityscapesVal":
-                if self.opt.use_dinov1:
-                    img_size = (480, 960)               
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 952)               
-                    PATCH_SIZE = 14
-            elif "SAX" in dataset_name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 640)       # this is wrong
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 616)
-                    PATCH_SIZE = 14
-            elif "BDD" in dataset_name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 832)
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 840)
-                    PATCH_SIZE = 14
-            else:
-                if self.opt.use_dinov1:
-                    img_size = 256
-                    PATCH_SIZE = 16
-                else:
-                    img_size = 224
-                    PATCH_SIZE = 14
-            if self.opt.mask_prob_schedule == "linear" or self.opt.mask_prob_schedule == "sinusoidal":
-                # redefine random mask prob using self.mask_prob_schedule_fn
-                val_collate_fn = get_val_collate_fn(
-                                        img_size=img_size, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.mask_prob_schedule_fn(training_it_count), 
-                                        min_mask_prob=None, 
-                                        max_mask_prob=None,
-                                        )
-            else:
-                val_collate_fn = get_val_collate_fn(
-                                        img_size=img_size, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.opt.random_mask_prob, 
-                                        min_mask_prob=self.opt.min_mask_prob, 
-                                        max_mask_prob=self.opt.max_mask_prob,
-                                        )
+            val_collate_fn = get_val_collate_fn(
+                                    img_size=val_dataset.crop_sizes, 
+                                    patch_size=model.patch_size, 
+                                    random_mask_prob=self.opt.random_mask_prob, 
+                                    min_mask_prob=self.opt.min_mask_prob, 
+                                    max_mask_prob=self.opt.max_mask_prob,
+                                    )
         else:
             val_collate_fn = None
 
@@ -221,7 +172,7 @@ class Validator():
 
         full_val_dataloader = torch.utils.data.DataLoader(
                                                     dataset=val_dataset, 
-                                                    batch_size=np.minimum(self.opt.batch_size, len(val_dataset)).item(), 
+                                                    batch_size=min(self.opt.batch_size, len(val_dataset)), 
                                                     shuffle=False, 
                                                     num_workers=_num_workers, 
                                                     drop_last=False,
@@ -232,22 +183,23 @@ class Validator():
         for _, (val_dict) in enumerate(iterator):
             val_imgs = to_device(val_dict["img"], device)
             unnorm_val_imgs = copy.deepcopy(val_imgs)
+
+            # TODO: use de-norm fn
             unnorm_val_imgs = unnorm_val_imgs * torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1) 
             unnorm_val_imgs = unnorm_val_imgs + torch.tensor([0.485, 0.456, 0.406], device=device).view(1,3,1,1)
+
             val_labels = to_device(val_dict["label"], device)
 
-            if self.opt.run_masking_task or self.opt.run_sup_masking_training:
+            if self.opt.mask_input:
                 val_masks = to_device(val_dict["mask"], device)
                 H, W = val_imgs.shape[-2:]
 
-                if self.opt.mask_only_query:
-                    val_masks_q = val_masks
-                    val_masks_t = torch.zeros_like(val_masks)
-                else:
-                    val_masks_t, val_masks_q = swap_on_batch_dim(val_masks, torch.zeros_like(val_masks))
+                # only masking query input
+                val_masks_q = val_masks
+                val_masks_t = torch.zeros_like(val_masks)
 
-                square_masks_t = val_masks_t.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
+                square_masks_t = val_masks_t.reshape(-1, H//model.patch_size, W//model.patch_size)
+                square_masks_q = val_masks_q.reshape(-1, H//model.patch_size, W//model.patch_size)
                 square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
                 square_masks_t = F.interpolate(square_masks_t.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
             else:
@@ -258,65 +210,33 @@ class Validator():
 
 
             if self.opt.frozen_target:
-                target_seg_masks, patch_embeddings = model.target_seg_net.get_target_seg_masks(
-                                                                val_imgs, 
-                                                                include_void=False, 
-                                                                high_res=True, 
-                                                                masks=val_masks_t, 
-                                                                use_sigmoid=self.opt.use_sigmoid, 
-                                                                return_patch_embeddings=True,
-                                                                )
-            else:
-                target_seg_masks, patch_embeddings = model.seg_net.get_target_seg_masks(
+                target_seg_masks = model.target_seg_net.get_target_seg_masks(
                                                             val_imgs, 
-                                                            include_void=True, 
+                                                            include_void=False, 
                                                             high_res=True, 
                                                             masks=val_masks_t, 
-                                                            use_sigmoid=self.opt.use_sigmoid,
-                                                            return_patch_embeddings=True,
+                                                            use_sigmoid=self.opt.use_sigmoid, 
                                                             )
+            else:
+                target_seg_masks = model.seg_net.get_target_seg_masks(
+                                                        val_imgs, 
+                                                        include_void=True, 
+                                                        high_res=True, 
+                                                        masks=val_masks_t, 
+                                                        use_sigmoid=self.opt.use_sigmoid,
+                                                        )
 
             target_ms_imgs, target_segs = torch.max(target_seg_masks, dim=1)
 
 
-            if masking_model is not None:
-                val_masks_q, learned_soft_masks = masking_model.masking_net(patch_embeddings)
-                square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
-                valid_masks = None
-
-            elif self.opt.use_adaptive_masking:
-                val_masks_q, valid_masking_region_masks = get_query_masks(
-                                                                        target_seg_masks, 
-                                                                        p=self.opt.adaptive_masking_p, 
-                                                                        return_valid_region_masks=True, 
-                                                                        uncertainty_threshold=self.opt.mask_threshold,
-                                                                        query_mask_scaling=self.opt.query_mask_scaling,
-                                                                        query_mask_temp=self.opt.query_mask_temp,
-                                                                        )
-                square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
-
-
-            if masking_model is not None:
-                query_seg_masks = model.seg_net.get_query_seg_masks(
-                                                        val_imgs, 
-                                                        include_void=True, 
-                                                        high_res=True, 
-                                                        masks=val_masks_q, 
-                                                        use_sigmoid=self.opt.use_sigmoid,
-                                                        masks_float=val_masks_q.float(),
-                                                        )
-                query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
-            else:
-                query_seg_masks = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
-                query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
+            query_seg_masks = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
+            query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
 
             # NOTE: segs from MASKED query seg masks, ms_imgs from UNMASKED query seg masks
             query_segs = torch.argmax(query_seg_masks, dim=1)
             query_ms_imgs = torch.max(query_seg_masks_unmasked, dim=1)[0]
 
-            ### get the rank of each confidence value in the batch, then norm to [0,1]###
+            ### get the rank of each confidence value in the batch, then norm to [0,1] ###
             # do this to get a scale invariant measure of confidence
             bs, h, w = query_ms_imgs.shape
             query_ms_imgs_ranked = query_ms_imgs.clone()
@@ -326,7 +246,6 @@ class Validator():
             target_ms_imgs_ranked = target_ms_imgs.clone()
             target_ms_imgs_ranked = target_ms_imgs_ranked.view(-1).argsort().argsort().view(bs, h, w)
             target_ms_imgs_ranked = target_ms_imgs_ranked.float() / target_ms_imgs_ranked.max()
-
 
             for batch_no in range(val_imgs.shape[0]):
                 unnorm_img = unnorm_val_imgs[batch_no].permute(1,2,0).detach().cpu().numpy()
@@ -342,42 +261,13 @@ class Validator():
                 ms_img_q_quant_ranked = torch.floor(ms_img_q_quant_ranked * 10).long().numpy()
 
 
-
-                # ms_img_q = query_ms_imgs[batch_no].detach().cpu().numpy()
-                # ms_img_q = np.clip(ms_img_q, 0, 1)
-                # ms_img_q = np.uint8(ms_img_q * 255)
-                # ms_img_q = cv2.applyColorMap(ms_img_q, cv2.COLORMAP_JET)
-                # ms_img_q = ms_img_q.astype(np.float32) / 255.0
-
-                # ms_img_q = 0.5 * overlays[batch_no].permute(1,2,0).detach().cpu().numpy() + 0.5 * ms_img_q
-
-
-                # ms_img_t = target_ms_imgs[batch_no].detach().cpu().numpy()
-                # ms_img_t = np.clip(ms_img_t, 0, 1)
-                # ms_img_t = np.uint8(ms_img_t * 255)
-                # ms_img_t = cv2.applyColorMap(ms_img_t, cv2.COLORMAP_JET)
-                # ms_img_t = ms_img_t.astype(np.float32) / 255.0
-                
-                # ms_img_t = 0.5 * overlays[batch_no].permute(1,2,0).detach().cpu().numpy() + 0.5 * ms_img_t
-
-
-
                 ground_truth_mask = val_labels[batch_no].detach().cpu().numpy()
                 if square_masks_q is not None:
-                    if masking_model is not None:
-                        square_mask_q = square_masks_q[batch_no].detach().cpu()
-                        square_mask_q = torch.floor(square_mask_q * 10).long().numpy()
-                    else:
-                        square_mask_q = square_masks_q[batch_no].detach().cpu().numpy()
+                    square_mask_q = square_masks_q[batch_no].detach().cpu().numpy()
                 else:
                     square_mask_q = None
                 if square_masks_t is not None:
-                    if masking_model is not None:
-                        square_mask_t = square_masks_t[batch_no].detach().cpu()
-                        square_mask_t = torch.floor(square_mask_t * 10).long().numpy()
-                    else:
-                        square_mask_t = square_masks_t[batch_no].detach().cpu().numpy()
-
+                    square_mask_t = square_masks_t[batch_no].detach().cpu().numpy()
                 else:
                     square_mask_t = None
                 # display segmentations as masks in wandb
@@ -401,224 +291,35 @@ class Validator():
                 seg_count += 1
     ######################################################################################################################################################
 
-    @torch.no_grad()
-    def view_val_segmentations_before_after(self, val_dataset, model):
-        device = next(model.parameters()).device
-
-        dataset_name = val_dataset.name
-
-        print("viewing val segmentations for {}".format(dataset_name))
-
-        self.val_seg_idxs[dataset_name] = [int(idx) for idx in self.val_seg_idxs[dataset_name]]
-        val_dataset = torch.utils.data.Subset(val_dataset, self.val_seg_idxs[dataset_name])
-
-        if self.opt.run_masking_task or self.opt.run_sup_masking_training:
-            from utils.collation_utils import get_val_collate_fn
-            if dataset_name == "CityscapesVal":
-                if self.opt.use_dinov1:
-                    img_size = (480, 960)               
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 952)               
-                    PATCH_SIZE = 14
-            elif "SAX" in dataset_name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 640)       # this is wrong
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 616)
-                    PATCH_SIZE = 14
-            elif "BDD" in val_dataset.name:
-                if self.opt.use_dinov1:
-                    img_size = (480, 832)
-                    PATCH_SIZE = 16
-                else:
-                    img_size = (476, 840)
-                    PATCH_SIZE = 14
-            else:
-                if self.opt.use_dinov1:
-                    img_size = 256
-                    PATCH_SIZE = 16
-                else:
-                    img_size = 224
-                    PATCH_SIZE = 14
-            print(f"collate_fn, img_size: {img_size}")
-            val_collate_fn = get_val_collate_fn(
-                                        img_size=img_size, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.opt.random_mask_prob, 
-                                        min_mask_prob=self.opt.min_mask_prob, 
-                                        max_mask_prob=self.opt.max_mask_prob,
-                                        )
-        else:
-            val_collate_fn = None
-
-        _num_workers = 0 if self.opt.num_workers == 0 else 2
-
-        full_val_dataloader = torch.utils.data.DataLoader(
-                                                    dataset=val_dataset, 
-                                                    batch_size=np.minimum(self.opt.batch_size, len(val_dataset)).item(), 
-                                                    shuffle=False, 
-                                                    num_workers=_num_workers, 
-                                                    drop_last=False,
-                                                    collate_fn=val_collate_fn,
-                                                    )
-        seg_count = 0
-        iterator = tqdm(full_val_dataloader)
-        for _, (val_dict) in enumerate(iterator):
-            val_imgs = to_device(val_dict["img"], device)
-            print(f"val_imgs.shape: {val_imgs.shape}")
-            unnorm_val_imgs = copy.deepcopy(val_imgs)
-            unnorm_val_imgs = unnorm_val_imgs * torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1) 
-            unnorm_val_imgs = unnorm_val_imgs + torch.tensor([0.485, 0.456, 0.406], device=device).view(1,3,1,1)
-            val_labels = to_device(val_dict["label"], device)
-
-            if self.opt.run_masking_task or self.opt.run_sup_masking_training:
-                val_masks = to_device(val_dict["mask"], device)
-                print(f"val_masks.shape: {val_masks.shape}")
-                print(f"mean for each batch element, val_masks: {val_masks.float().mean(dim=(1))}")
-                H, W = val_imgs.shape[-2:]
-
-                # val_masks_t, val_masks_q = swap_on_batch_dim(val_masks, torch.zeros_like(val_masks))
-                val_masks_t = val_masks
-                val_masks_q = val_masks
-
-                print(f"val_masks_t.shape: {val_masks_t.shape}")
-                print(f"mean for each batch element, val_masks_t: {val_masks_t.float().mean(dim=(1))}")
-                print(f"val_masks_q.shape: {val_masks_q.shape}")
-                print(f"mean for each batch element, val_masks_q: {val_masks_q.float().mean(dim=(1))}")
-
-                square_masks_t = val_masks_t.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                print(f"square_masks_t.shape: {square_masks_t.shape}")
-                print(f"mean for each batch element, square_masks_t: {square_masks_t.float().mean(dim=(1,2))}")
-                square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                print(f"square_masks_q.shape: {square_masks_q.shape}")
-                print(f"mean for each batch element, square_masks_q: {square_masks_q.float().mean(dim=(1,2))}")
-                square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
-                print(f"square_masks_q.shape: {square_masks_q.shape}")
-                print(f"mean for each batch element, square_masks_q: {square_masks_q.float().mean(dim=(1,2))}")
-                square_masks_t = F.interpolate(square_masks_t.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
-                print(f"square_masks_t.shape: {square_masks_t.shape}")
-                print(f"mean for each batch element, square_masks_t: {square_masks_t.float().mean(dim=(1,2))}")
-            else:
-                val_masks_t = None
-                val_masks_q = None
-                square_masks_q = None
-                square_masks_t = None
-
-            # print(f"val_masks_q dtype: {val_masks_q.dtype}")
-            # query_seg_masks = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_q)
-            # query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=torch.zeros_like(val_masks_q))
-            # query_segs = torch.argmax(query_seg_masks, dim=1)
-            # query_segs_unmasked = torch.argmax(query_seg_masks_unmasked, dim=1)
-
-            # print(f"val_masks_t dtype: {val_masks_t.dtype}")
-            if self.opt.frozen_target:
-                target_seg_masks = model.target_seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True, masks=val_masks_t)
-                target_seg_masks_unmasked = model.target_seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True, masks=torch.zeros_like(val_masks_t))
-                
-                """
-                target_features = model.target_seg_net.extract_features(val_imgs, use_deep_features=False, masks=val_masks_t)
-                target_features = F.interpolate(target_features, size=(H,W), mode="bilinear", align_corners=False)
-                # prototype segment features
-                target_seg_masks = model.proto_segment_features(target_features, use_dataset_prototypes=True, skip_projection=True, include_void=False)[0]
-
-                target_features_unmasked = model.target_seg_net.extract_features(val_imgs, use_deep_features=False, masks=torch.zeros_like(val_masks_t))
-                target_features_unmasked = F.interpolate(target_features_unmasked, size=(H,W), mode="bilinear", align_corners=False)
-                # prototype segment features
-                target_seg_masks_unmasked = model.proto_segment_features(target_features_unmasked, use_dataset_prototypes=True, skip_projection=True, include_void=False)[0]
-                """
-
-            else:
-                target_seg_masks = model.seg_net.get_target_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_t)
-                target_seg_masks_unmasked = model.seg_net.get_target_seg_masks(val_imgs, include_void=True, high_res=True, masks=torch.zeros_like(val_masks_t))
-            target_segs = torch.argmax(target_seg_masks, dim=1)
-            target_segs_unmasked = torch.argmax(target_seg_masks_unmasked, dim=1)
-
-            for batch_no in range(val_imgs.shape[0]):
-                unnorm_img = unnorm_val_imgs[batch_no].permute(1,2,0).detach().cpu().numpy()
-                predicted_mask_target = target_segs[batch_no].detach().cpu().numpy()
-                predicted_mask_target_unmasked = target_segs_unmasked[batch_no].detach().cpu().numpy()
-                # predicted_mask_query = query_segs[batch_no].detach().cpu().numpy()
-                # predicted_mask_query_unmasked = query_segs_unmasked[batch_no].detach().cpu().numpy()
-                ground_truth_mask = val_labels[batch_no].detach().cpu().numpy()
-                if square_masks_q is not None:
-                    square_mask_q = square_masks_q[batch_no].detach().cpu().numpy()
-                else:
-                    square_mask_q = None
-                if square_masks_t is not None:
-                    square_mask_t = square_masks_t[batch_no].detach().cpu().numpy()
-                else:
-                    square_mask_t = None
-                # display segmentations as masks in wandb
-                masks_log = {}
-                masks_log["target_predictions"] = {"mask_data": predicted_mask_target, "class_labels": self.class_dict}
-                masks_log["target_predictions_unmasked"] = {"mask_data": predicted_mask_target_unmasked, "class_labels": self.class_dict}
-                # masks_log["query_predictions"] = {"mask_data": predicted_mask_query, "class_labels": self.class_dict}
-                # masks_log["query_predictions_unmasked"] = {"mask_data": predicted_mask_query_unmasked, "class_labels": self.class_dict}
-                masks_log["ground_truth"] = {"mask_data": ground_truth_mask, "class_labels": self.class_dict}
-                # if square_mask_q is not None:
-                #     masks_log["mask_q"] = {"mask_data": square_mask_q}
-
-                if square_mask_t is not None:
-                    masks_log["mask_t"] = {"mask_data": square_mask_t}
-                masked_image = wandb.Image(
-                                    unnorm_img,
-                                    masks=masks_log,
-                                    )
-                wandb.log({f"val_segs {dataset_name}/{seg_count}": masked_image}, commit=False)
-                seg_count += 1
-    ######################################################################################################################################################
-
     ######################################################################################################################################################
     @torch.no_grad()
-    def view_train_segmentations(self, train_dataset, model, training_it_count, masking_model=None):
+    def view_train_segmentations(self, train_dataset, model):
         device = next(model.parameters()).device
 
         self.train_seg_idxs = [int(idx) for idx in self.train_seg_idxs]
         train_subset = torch.utils.data.Subset(train_dataset, self.train_seg_idxs)
 
-        if self.opt.run_masking_task or self.opt.run_sup_masking_training or self.opt.run_mask_learning_task:
+        if self.opt.mask_input:
             from utils.collation_utils import get_collate_fn
-
-            if self.opt.use_dinov1:
-                IMG_SIZE = 256
-                PATCH_SIZE = 16
-            else:
-                IMG_SIZE = 224
-                PATCH_SIZE = 14
-            if self.opt.mask_prob_schedule == "linear" or self.opt.mask_prob_schedule == "sinusoidal":
-                # redefine random mask prob using self.mask_prob_schedule_fn
-                val_collate_fn = get_collate_fn(
-                                        img_size=IMG_SIZE, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.mask_prob_schedule_fn(training_it_count), 
-                                        min_mask_prob=None, 
-                                        max_mask_prob=None,
-                                        )
-            else:
-                val_collate_fn = get_collate_fn(
-                                        img_size=IMG_SIZE, 
-                                        patch_size=PATCH_SIZE, 
-                                        random_mask_prob=self.opt.random_mask_prob, 
-                                        min_mask_prob=self.opt.min_mask_prob, 
-                                        max_mask_prob=self.opt.max_mask_prob,
-                                        )
+            val_collate_fn = get_collate_fn(
+                                    img_size=self.model.crop_size, 
+                                    patch_size=self.model.patch_size, 
+                                    random_mask_prob=self.opt.random_mask_prob, 
+                                    min_mask_prob=self.opt.min_mask_prob, 
+                                    max_mask_prob=self.opt.max_mask_prob,
+                                    )
         else:
             val_collate_fn = None
 
-        # _num_workers is 2 unless self.opt.num_workers is 0
         _num_workers = 0 if self.opt.num_workers == 0 else 2
-
-
         dataloader = torch.utils.data.DataLoader(
-                                                    dataset=train_subset, 
-                                                    batch_size=np.minimum(self.opt.batch_size, len(train_subset)).item(), 
-                                                    shuffle=False, 
-                                                    num_workers=_num_workers, 
-                                                    drop_last=False,
-                                                    collate_fn=val_collate_fn,
-                                                    )
+                                            dataset=train_subset, 
+                                            batch_size=min(self.opt.batch_size, len(train_subset)), 
+                                            shuffle=False, 
+                                            num_workers=_num_workers, 
+                                            drop_last=False,
+                                            collate_fn=val_collate_fn,
+                                            )
         raw_seg_count = 0
         labelled_seg_count = 0
         log_dict = {}
@@ -667,93 +368,55 @@ class Validator():
                 raw_crop_boxes_A = to_device(raw_dict["box_A"], device)
                 raw_crop_boxes_B = to_device(raw_dict["box_B"], device)
 
-                val_masks = to_device(raw_dict["mask"], device)
-                H, W = labelled_imgs.shape[-2:]
+                if self.opt.mask_input:
+                    val_masks = to_device(raw_dict["mask"], device)
+                    H, W = labelled_imgs.shape[-2:]
 
-                if self.opt.mask_only_query:
+                    # masking only query input
                     val_masks_t = torch.zeros_like(val_masks)
                     val_masks_q = val_masks
-                else:
-                    val_masks_t, val_masks_q = swap_on_batch_dim(val_masks, torch.zeros_like(val_masks))
 
-                # prepare square masks for visualisation
-                square_masks_t = val_masks_t.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
-                square_masks_t = F.interpolate(square_masks_t.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
+                    # prepare square masks for visualisation
+                    square_masks_t = val_masks_t.reshape(-1, H//model.patch_size, W//model.patch_size)
+                    square_masks_q = val_masks_q.reshape(-1, H//model.patch_size, W//model.patch_size)
+                    square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
+                    square_masks_t = F.interpolate(square_masks_t.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
+                else:
+                    val_masks_t = None
+                    val_masks_q = None
+                    square_masks_q = None
+                    square_masks_t = None
 
                 ### target branch ###
                 raw_imgs_t_tA = raw_imgs_t
                 if self.opt.frozen_target:
-                    seg_masks_t_tAB, patch_embeddings = model.target_seg_net.get_target_seg_masks(
-                                                                                    raw_imgs_t, 
-                                                                                    include_void=False, 
-                                                                                    high_res=True, 
-                                                                                    masks=val_masks_t, 
-                                                                                    use_sigmoid=self.opt.use_sigmoid, 
-                                                                                    return_patch_embeddings=True,
-                                                                                    )
+                    seg_masks_t_tAB = model.target_seg_net.get_target_seg_masks(
+                                                                        raw_imgs_t, 
+                                                                        include_void=False, 
+                                                                        high_res=True, 
+                                                                        masks=val_masks_t, 
+                                                                        use_sigmoid=self.opt.use_sigmoid, 
+                                                                        )
                 else:
-                    seg_masks_t_tAB, patch_embeddings = model.seg_net.get_target_seg_masks(
-                                                                                    raw_imgs_t, 
-                                                                                    include_void=False, 
-                                                                                    high_res=True, 
-                                                                                    masks=val_masks_t, 
-                                                                                    use_sigmoid=self.opt.use_sigmoid, 
-                                                                                    return_patch_embeddings=True,
-                                                                                    )
+                    seg_masks_t_tAB = model.seg_net.get_target_seg_masks(
+                                                                raw_imgs_t, 
+                                                                include_void=False, 
+                                                                high_res=True, 
+                                                                masks=val_masks_t, 
+                                                                use_sigmoid=self.opt.use_sigmoid, 
+                                                                )
 
-
-                if masking_model is not None:
-                    val_masks_q, learned_soft_masks = masking_model.masking_net(patch_embeddings)
-                    square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                    square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1)
-                    valid_masks = None
-
-                elif self.opt.use_adaptive_masking:
-                    # redefine val_masks_q
-                    val_masks_q, valid_masks = get_query_masks(
-                                                    seg_masks_t_tAB, 
-                                                    p=self.opt.adaptive_masking_p, 
-                                                    return_valid_region_masks=True, 
-                                                    uncertainty_threshold=self.opt.mask_threshold,
-                                                    query_mask_scaling=self.opt.query_mask_scaling,
-                                                    query_mask_temp=self.opt.query_mask_temp,
-                                                    )
-                    square_masks_q = val_masks_q.reshape(-1, H//PATCH_SIZE, W//PATCH_SIZE)
-                    square_masks_q = F.interpolate(square_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
-                else:
-                    valid_masks = None
 
                 ### query branch ###
                 raw_imgs_q_tB = raw_imgs_q
-                if masking_model is not None:
-                    seg_masks_q_tBA_masked = model.seg_net.get_query_seg_masks(
-                                                                    raw_imgs_q, 
-                                                                    include_void=True, 
-                                                                    high_res=True, 
-                                                                    use_sigmoid=self.opt.use_sigmoid,
-                                                                    masks_float=val_masks_q.float(),
-                                                                    )
-                    seg_masks_q_tBA_unmasked = model.seg_net.get_query_seg_masks(
-                                                                    raw_imgs_q, 
-                                                                    include_void=True, 
-                                                                    high_res=True, 
-                                                                    masks=None, 
-                                                                    use_sigmoid=self.opt.use_sigmoid,
-                                                                    )
-                else:
-                    seg_masks_q_tBA_masked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
-                    seg_masks_q_tBA_unmasked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
-
+                seg_masks_q_tBA_masked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
+                seg_masks_q_tBA_unmasked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
 
                 # un-normalise raw_imgs
                 raw_imgs_t_tA = raw_imgs_t_tA * torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1) 
                 raw_imgs_q_tB = raw_imgs_q_tB + torch.tensor([0.485, 0.456, 0.406], device=device).view(1,3,1,1)
 
-                print(f"before gamma: {model.gamma}")
-                model.update_gamma(seg_masks_q_masked=seg_masks_q_tBA_masked, seg_masks_q_unmasked=seg_masks_q_tBA_unmasked, seg_masks_t=seg_masks_t_tAB, raw_masks_q=val_masks_q, raw_masks_t=val_masks_t)
-                print(f"after gamma: {model.gamma}")
+                model.update_gamma(seg_masks_q=seg_masks_q_tBA_unmasked, seg_masks_t=seg_masks_t_tAB)
 
                 if (self.opt.gamma_scaling is None) or (self.opt.gamma_scaling == "None"):
                     gamma_seg_masks_q_tBA = seg_masks_q_tBA_unmasked.clone()
@@ -763,32 +426,17 @@ class Validator():
                 gamma_seg_masks_q_tBA = segmasks2gammasegmasks(gamma_seg_masks_q_tBA, gamma=model.gamma.detach(), opt=self.opt)
                 gamma_masks_q_tBA = torch.eq(torch.argmax(gamma_seg_masks_q_tBA, dim=1), len(self.class_labels)-1).float()      # 1 where uncertain
 
-                print(f"gamma_masks_q_tBA: {gamma_masks_q_tBA.mean()}")
 
-                if self.opt.optim_middle:
-                    xent_loss_imgs_cu, xent_loss_imgs_ic = self.losses.calculate_masking_ssl_loss(
-                                                                        seg_masks_t=seg_masks_t_tAB,
-                                                                        seg_masks_q=seg_masks_q_tBA_masked,
-                                                                        gamma_masks_q=gamma_masks_q_tBA,
-                                                                        raw_masks_q=val_masks_q,
-                                                                        raw_masks_t=val_masks_t,
-                                                                        return_loss_imgs=True,
-                                                                        )
-
-                    xent_loss_imgs_max = max(xent_loss_imgs_cu.max(), xent_loss_imgs_ic.max())
-                    xent_loss_imgs_ic = (xent_loss_imgs_ic - xent_loss_imgs_ic.min()) / (xent_loss_imgs_max - xent_loss_imgs_ic.min())      
-                    xent_loss_imgs_cu = (xent_loss_imgs_cu - xent_loss_imgs_cu.min()) / (xent_loss_imgs_max - xent_loss_imgs_cu.min())
-                else:
-                    xent_loss_imgs = self.losses.calculate_masking_ssl_loss(
-                                                                        seg_masks_t=seg_masks_t_tAB,
-                                                                        seg_masks_q=seg_masks_q_tBA_masked,
-                                                                        gamma_masks_q=gamma_masks_q_tBA,
-                                                                        raw_masks_q=val_masks_q,
-                                                                        raw_masks_t=val_masks_t,
-                                                                        return_loss_imgs=True,
-                                                                        )
-                    # normalise to [0,1]
-                    xent_loss_imgs = (xent_loss_imgs - xent_loss_imgs.min()) / (xent_loss_imgs.max() - xent_loss_imgs.min())
+                xent_loss_imgs = self.losses.calculate_masking_ssl_loss(
+                                                                    seg_masks_t=seg_masks_t_tAB,
+                                                                    seg_masks_q=seg_masks_q_tBA_masked,
+                                                                    gamma_masks_q=gamma_masks_q_tBA,
+                                                                    raw_masks_q=val_masks_q,
+                                                                    raw_masks_t=val_masks_t,
+                                                                    return_loss_imgs=True,
+                                                                    )
+                # normalise to [0,1]
+                xent_loss_imgs = (xent_loss_imgs - xent_loss_imgs.min()) / (xent_loss_imgs.max() - xent_loss_imgs.min())
 
 
                 ms_imgs_t, segs_t_tAB = torch.max(seg_masks_t_tAB, dim=1)
@@ -796,9 +444,6 @@ class Validator():
                 segs_q_tBA = torch.argmax(seg_masks_q_tBA_masked, dim=1)
                 # NOTE ms imgs from unmasked
                 ms_imgs_q = torch.max(seg_masks_q_tBA_unmasked, dim=1)[0]
-
-
-
 
                 ### get the rank of each confidence value in the batch, then norm to [0,1]###
                 # do this to get a scale invariant measure of confidence
@@ -831,37 +476,17 @@ class Validator():
 
                     gamma_mask = gamma_masks_q_tBA[batch_no].detach().cpu().numpy()
 
+                    xent_loss_img = xent_loss_imgs[batch_no].detach().cpu()
+                    # quantise xent_loss_img into N bins, with numbers 0 to N-1
+                    xent_loss_img = torch.ceil(xent_loss_img * 10).long().numpy()
 
-                    if self.opt.optim_middle:
-                        xent_loss_img_cu = xent_loss_imgs_cu[batch_no].detach().cpu()
-                        xent_loss_img_ic = xent_loss_imgs_ic[batch_no].detach().cpu()
-
-                        # quantise xent_loss_img into N bins, with numbers 0 to N-1
-                        xent_loss_img_cu = torch.ceil(xent_loss_img_cu * 10).long().numpy()
-                        xent_loss_img_ic = torch.ceil(xent_loss_img_ic * 10).long().numpy()
-                    else:
-                        xent_loss_img = xent_loss_imgs[batch_no].detach().cpu()
-                        # quantise xent_loss_img into N bins, with numbers 0 to N-1
-                        xent_loss_img = torch.ceil(xent_loss_img * 10).long().numpy()
-
-                    if valid_masks is not None:
-                        valid_mask = valid_masks[batch_no].detach().cpu().numpy()
                     if square_masks_q is not None:
-                        if masking_model is not None:
-                            square_mask_q = square_masks_q[batch_no].detach().cpu()
-                            square_mask_q = torch.floor(square_mask_q * 10).long().numpy()
-                        else:
-                            square_mask_q = square_masks_q[batch_no].detach().cpu().numpy()
+                        square_mask_q = square_masks_q[batch_no].detach().cpu().numpy()
                     else:
                         square_mask_q = None
-
-                    
+        
                     if square_masks_t is not None:
-                        if masking_model is not None:
-                            square_mask_t = square_masks_t[batch_no].detach().cpu()
-                            square_mask_t = torch.floor(square_mask_t * 10).long().numpy()
-                        else:
-                            square_mask_t = square_masks_t[batch_no].detach().cpu().numpy()
+                        square_mask_t = square_masks_t[batch_no].detach().cpu().numpy()
                     else:
                         square_mask_t = None
 
@@ -872,19 +497,12 @@ class Validator():
                     # 2) ms_imgs
                     masks_log_t["ms_img_t_ranked"] = {"mask_data": ms_img_t_quant_ranked, "class_labels": {idx : str(idx) for idx in range(11)}}
                     # 3) masks
-                    masks_log_t["mask_t"] = {"mask_data": square_mask_t, "class_labels": {idx : str(idx) for idx in range(11)}}
-                    if valid_masks is not None:
-                        # 4) valid_masks
-                        masks_log_t["valid_mask"] = {"mask_data": valid_mask}
+                    if square_mask_t is not None:
+                        masks_log_t["mask_t"] = {"mask_data": square_mask_t, "class_labels": {idx : str(idx) for idx in range(11)}}
                     # 5) consistency_masks
                     masks_log_t["consistency_mask"] = {"mask_data": consistency_mask}
                     # 6) xent_loss
-                    if self.opt.optim_middle:
-                        masks_log_t["xent_loss_cu"] = {"mask_data": xent_loss_img_cu, "class_labels": {idx : str(idx) for idx in range(11)}}
-                        masks_log_t["xent_loss_ic"] = {"mask_data": xent_loss_img_ic, "class_labels": {idx : str(idx) for idx in range(11)}}
-                    else:
-                        masks_log_t["xent_loss"] = {"mask_data": xent_loss_img}
-
+                    masks_log_t["xent_loss"] = {"mask_data": xent_loss_img}
                     # 7) gamma_masks
                     masks_log_t["gamma_mask"] = {"mask_data": gamma_mask}
 
@@ -895,23 +513,15 @@ class Validator():
                     # 2) ms_imgs
                     masks_log_q["ms_img_q_ranked"] = {"mask_data": ms_img_q_quant_ranked, "class_labels": {idx : str(idx) for idx in range(11)}}
                     # 3) masks
-                    masks_log_q["mask_q"] = {"mask_data": square_mask_q, "class_labels": {idx : str(idx) for idx in range(11)}}
-                    if valid_masks is not None:
-                        # 4) valid_masks
-                        masks_log_q["valid_mask"] = {"mask_data": valid_mask}
+                    if square_mask_q is not None:
+                        masks_log_q["mask_q"] = {"mask_data": square_mask_q, "class_labels": {idx : str(idx) for idx in range(11)}}
                     # 5) consistency_masks
                     masks_log_q["consistency_mask"] = {"mask_data": consistency_mask}
                     # 6) xent_loss
-                    if self.opt.optim_middle:
-                        masks_log_q["xent_loss_cu"] = {"mask_data": xent_loss_img_cu, "class_labels": {idx : str(idx) for idx in range(11)}}
-                        masks_log_q["xent_loss_ic"] = {"mask_data": xent_loss_img_ic, "class_labels": {idx : str(idx) for idx in range(11)}}
-                    else:
-                        masks_log_q["xent_loss"] = {"mask_data": xent_loss_img}
-
+                    masks_log_q["xent_loss"] = {"mask_data": xent_loss_img}
                     # 7) gamma_masks
                     masks_log_q["gamma_mask"] = {"mask_data": gamma_mask}
                     
-
                     masked_raw_image_t = wandb.Image(
                                         raw_img_t_tA,
                                         masks=masks_log_t
@@ -926,9 +536,6 @@ class Validator():
                     wandb.log(log_dict, commit=False)
                     raw_seg_count += 1
             ######################################################################################################################################################
-                
-    ######################################################################################################################################################
-
 
 
     ######################################################################################################################################################
@@ -942,7 +549,7 @@ class Validator():
         if self.opt.output_rank_metrics:
             val_metrics_totals_rank, val_metrics_counts_rank = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
             # remove the key, value for "miou"
-            val_metrics_totals_rank.pop("miou")
+            del val_metrics_totals_rank["miou"]
 
         val_metrics_totals_seg_head, val_metrics_counts_seg_head = init_val_ue_metrics(self.opt.num_thresholds, counts=True)
         val_metrics_totals_consistency, val_metrics_counts_consistency = init_val_ue_metrics_consistency(1, counts=True)

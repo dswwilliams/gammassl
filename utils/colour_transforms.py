@@ -5,7 +5,7 @@ import random
 
 
 class ImgColourTransform(nn.Module):
-    def __init__(self, n_seq_transforms, no_colour):
+    def __init__(self, n_seq_transforms, no_colour=False):
         super(ImgColourTransform, self).__init__()
         self.k = n_seq_transforms
         # corruption transforms

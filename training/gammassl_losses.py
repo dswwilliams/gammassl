@@ -225,15 +225,17 @@ class GammaSSLLosses:
         ssl_metrics["mean_max_softmax_query"] = torch.max(p_y_given_x_q, dim=1)[0].mean().cpu()
         ssl_metrics["mean_max_softmax_target"] = torch.max(p_y_given_x_t, dim=1)[0].mean().cpu()
 
+
         with torch.no_grad():
             H, W = logits_1_to_K_q.shape[-2:]                
-            raw_masks_q = raw_masks_q.reshape(-1, H//14, W//14)
-            raw_masks_q = F.interpolate(raw_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
+            if raw_masks_q is not None:
+                raw_masks_q = raw_masks_q.reshape(-1, H//14, W//14)
+                raw_masks_q = F.interpolate(raw_masks_q.float().unsqueeze(1), size=(H,W), mode="nearest").squeeze(1).long()
+            else:
+                raw_masks_q = torch.ones(logits_1_to_K_q.shape[0],H,W).to(self.device).long()
 
             ms_imgs_q = torch.max(p_y_given_x_q.detach(), dim=1)[0]
-            print(f"in calculate_masking_ssl_loss, ms_imgs_q min mean max: {ms_imgs_q.min()}, {ms_imgs_q.mean()}, {ms_imgs_q.max()}")
             ms_imgs_t = torch.max(p_y_given_x_t.detach(), dim=1)[0]
-            print(f"in calculate_masking_ssl_loss, ms_imgs_t min mean max: {ms_imgs_t.min()}, {ms_imgs_t.mean()}, {ms_imgs_t.max()}")
 
             ssl_metrics["mean_max_softmax_query_unmasked"] = torch.div(
                                                                 (ms_imgs_q * (1-raw_masks_q.float())).sum(), 

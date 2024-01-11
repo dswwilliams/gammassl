@@ -22,17 +22,19 @@ class SegmentationModel(nn.Module):
     """
     
     ##########################################################################################################################################################
-    def __init__(self, device, opt, known_class_list, crop_size):
+    def __init__(self, device, opt, known_class_list):
         super().__init__()
         self.opt = opt
         self.device = device
         self.num_known_classes = len(known_class_list)
-        self.crop_size = crop_size
 
         if self.opt.model_arch == "vit_m2f":
             from models.vit_m2f_seg_net import ViT_M2F_SegNet as SegNet
+            self.crop_size = 224
         elif self.opt.model_arch == "deeplab":
             from models.deeplab_seg_net import DeepLabSegNet as SegNet
+            self.crop_size = 256
+
 
 
         self.seg_net = SegNet(device, opt, num_known_classes=self.num_known_classes)
@@ -40,6 +42,12 @@ class SegmentationModel(nn.Module):
             import loralib as lora
             lora.mark_only_lora_as_trainable(self.seg_net.encoder)
 
+        # if model.seg_net has variable patch size, then define self.patch_size as that, else define it as None
+        if hasattr(self.seg_net.encoder, "patch_size"):
+            self.patch_size = self.seg_net.encoder.patch_size
+            print("\n\n\npatch size:", self.patch_size)
+        else:
+            self.patch_size = None
 
         if self.opt.frozen_target:
             # create copy of seg_net for target that doesn't get updated
@@ -418,7 +426,7 @@ class SegmentationModel(nn.Module):
             return None
     
     ##########################################################################################################################################################
-    def update_gamma(self, seg_masks_q, seg_masks_t, raw_masks_q=None, raw_masks_t=None):
+    def update_gamma(self, seg_masks_q, seg_masks_t):
 
         segs_q, segs_t = seg_masks_q.detach().argmax(1), seg_masks_t.detach().argmax(1)
         consistency_masks = torch.eq(segs_q, segs_t).float()

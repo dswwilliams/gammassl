@@ -33,26 +33,26 @@ def normalize_img(img, imagenet=False):
 #     new_width = int(width/(downsample_factor*scale_factor))
 #     return new_height, new_width
 
-def get_preprocessed_data(example, imagenet_norm, downsample_factor, use_dino=False, val_transforms=False, colour_transform=None, use_dinov1=False):
+def get_preprocessed_data(example, imagenet_norm, downsample_factor, val_transforms=False, colour_transform=None, patch_size=None):
     img = cv2.cvtColor(cv2.imread(example["img_path"]), cv2.COLOR_BGR2RGB)
     h, w, _ = img.shape
     label_img = cv2.imread(example["label_path"], cv2.IMREAD_GRAYSCALE)
     new_img_h, new_img_w = get_initial_scaling_values(h, w, downsample_factor)
 
-    if use_dinov1:
+    if patch_size == 16:
         new_img_h = int(new_img_h/32)*32                    # div by 32
         new_img_w = int(np.round(new_img_h * (w/h)))        # not div by 32, but kept aspect ratio
-    elif use_dino:
+    elif patch_size == 14:
         new_img_h = int(new_img_h/28)*28                    # div by 28
         new_img_w = int(np.round(new_img_h * (w/h)))        # not div by 28, but kept aspect ratio
         
     img = cv2.resize(img, (new_img_w, new_img_h), interpolation=cv2.INTER_NEAREST)
     label_img = cv2.resize(label_img, (new_img_w, new_img_h), interpolation=cv2.INTER_NEAREST)
-
-    if use_dinov1:
+    
+    if patch_size == 16:
         new_img_w_div_28 = int(new_img_w/32)*32             # div by 32
         img, label_img = central_crop_img(img, label=label_img, output_shape=(new_img_h, new_img_w_div_28))
-    elif use_dino:
+    elif patch_size == 14:
         # central crop to make new_img_w divisible by 28
         new_img_w_div_28 = int(new_img_w/28)*28             # div by 28
         img, label_img = central_crop_img(img, label=label_img, output_shape=(new_img_h, new_img_w_div_28))
@@ -69,13 +69,13 @@ def get_preprocessed_data(example, imagenet_norm, downsample_factor, use_dino=Fa
 
 
 class BDDValDataset(torch.utils.data.Dataset):
-    def __init__(self, dataroot, use_dino, use_imagenet_norm, val_transforms=False, use_dinov1=False):
+    def __init__(self, dataroot, use_imagenet_norm, val_transforms=False, patch_size=None):
         self.name = "BDDVal"
+        self.aspect_ratio = (720, 1280)      # (H,W)
         self.imagenet_norm = use_imagenet_norm
         self.downsample_factor = DOWNSAMPLE_FACTOR
 
-        self.use_dino = use_dino
-        self.use_dinov1 = use_dinov1
+        self.patch_size = patch_size
 
         self.val_transforms = val_transforms
 
@@ -104,10 +104,9 @@ class BDDValDataset(torch.utils.data.Dataset):
                                 example, 
                                 self.imagenet_norm, 
                                 self.downsample_factor, 
-                                self.use_dino, 
                                 self.val_transforms, 
                                 self.colour_transform, 
-                                self.use_dinov1,
+                                patch_size=self.patch_size
                                 )
 
         output = {}
