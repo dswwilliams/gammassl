@@ -1,0 +1,13 @@
+../.DS_Store
+.DS_Store
+dataset_prep/
+tests/
+.DS_Store
+**/*.pyc
+**/**/*.pyc
+**/**/**/*.pyc
+runs/
+**/wandb
+wandb/
+*/wandb/
+*/training/wandb

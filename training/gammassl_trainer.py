@@ -47,12 +47,10 @@ class Trainer(BaseTrainer):
         self.model.model_to_train()
 
         ### calculate prototypes ###
-        print("calculating prototypes...")
         if self.opt.use_proto_seg:
             prototypes = self.model.calculate_batch_prototypes()
 
         ### supervised loss ###
-        print("performing labelled task...")
         m2f_losses, sup_metrics = self.perform_labelled_task(labelled_dict)
         for key in sup_metrics:
             metrics[key] = sup_metrics[key].item()
@@ -61,11 +59,9 @@ class Trainer(BaseTrainer):
         
         ### prototype loss ###
         if self.opt.use_proto_seg:
-            print("calculating prototype loss...")
             losses["loss_p"] = self.losses.calculate_prototype_loss(prototypes)
 
         ### uniformity and consistency losses ###
-        print("performing unlabelled task...")
         losses["loss_u"], losses["loss_c"], ssl_metrics = self.perform_unlabelled_task(raw_dict)
         for key in ssl_metrics:
             metrics[key] = ssl_metrics[key]
@@ -75,7 +71,6 @@ class Trainer(BaseTrainer):
             self.model.optimizers[network_ids].zero_grad()
 
         ### backprop loss ###
-        print("backpropagating loss...")
         model_loss = 0
         for key, loss in losses.items():
             weight = self.loss_weights[key.replace("loss_", "w_")]
@@ -83,7 +78,6 @@ class Trainer(BaseTrainer):
         (model_loss).backward()
 
         ### update weights ###
-        print("updating weights...")
         for network_ids in self.model.optimizers:
             self.model.optimizers[network_ids].step()
         for network_ids in self.model.schedulers:

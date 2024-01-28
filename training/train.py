@@ -238,6 +238,9 @@ opt = parser.parse_args()
 if socket.gethostname() == "smaug":
     opt.cityscapes_dataroot = "/home/dsww/data/"
     opt.unlabelled_dataroot = "/home/dsww/data/bdd100k"
+    opt.dino_path = "/home/dsww/networks/dinov2/dinov2.pth"
+    opt.dino_repo_path = "/home/dsww/code/dinov2"
+    opt.bdd_val_dataset = "/home/dsww/data/bdd_10k"
 elif opt.use_cpu:
     opt.batch_size = 2
     opt.num_workers = 0
