@@ -2,6 +2,7 @@ import sys
 import torch
 import argparse
 import os
+import socket
 ####################################################################################
 # custom imports
 sys.path.append("../")
@@ -234,7 +235,10 @@ parser.add_argument('--prototypes_path', type=str,  default=None)
 
 
 opt = parser.parse_args()
-if opt.use_cpu:
+if socket.gethostname() == "smaug":
+    opt.cityscapes_dataroot = "/home/dsww/data/"
+    opt.unlabelled_dataroot = "/home/dsww/data/bdd100k"
+elif opt.use_cpu:
     opt.batch_size = 2
     opt.num_workers = 0
     opt.cityscapes_dataroot = "/Users/dw/data/"
