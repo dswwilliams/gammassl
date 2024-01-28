@@ -45,7 +45,6 @@ class SegmentationModel(nn.Module):
         # if model.seg_net has variable patch size, then define self.patch_size as that, else define it as None
         if hasattr(self.seg_net.encoder, "patch_size"):
             self.patch_size = self.seg_net.encoder.patch_size
-            print("\n\n\npatch size:", self.patch_size)
         else:
             self.patch_size = None
 

@@ -237,7 +237,7 @@ parser.add_argument('--prototypes_path', type=str,  default=None)
 opt = parser.parse_args()
 if socket.gethostname() == "smaug":
     opt.cityscapes_dataroot = "/home/dsww/data/"
-    opt.unlabelled_dataroot = "/home/dsww/data/bdd100k"
+    opt.unlabelled_dataroot = "/mnt/data/bdd100k"
     opt.dino_path = "/home/dsww/networks/dinov2/dinov2.pth"
     opt.dino_repo_path = "/home/dsww/code/dinov2"
     opt.bdd_val_dataroot = "/home/dsww/data/bdd_10k"
