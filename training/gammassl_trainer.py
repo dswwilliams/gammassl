@@ -21,8 +21,11 @@ class Trainer(BaseTrainer):
         
         self.losses = GammaSSLLosses(self.opt, self.device, num_known_classes=len(self.known_class_list))
 
-        self.loss_weights = {"w_c": self.opt.w_c, "w_u": self.opt.w_u, "w_p": self.opt.w_p, "w_s": self.opt.w_s, 
-                                "w_mask": self.opt.w_mask, "w_dice": self.opt.w_dice, "w_ce": self.opt.w_ce,}
+        # for all opts in self.opt, if it starts with "w_" then add it to self.loss_weights
+        self.loss_weights = {}
+        for key, val in vars(self.opt).items():
+            if key[:2] == "w_":
+                self.loss_weights[key] = val
 
         self.model.gamma = torch.zeros(1, dtype=torch.float32).to(self.device)
     ##########################################################################################################################################################
@@ -47,7 +50,6 @@ class Trainer(BaseTrainer):
         self.model.model_to_train()
 
         ### calculate prototypes ###
-        print("calculating prototypes...")
         if self.opt.use_proto_seg:
             prototypes = self.model.calculate_batch_prototypes()
 

@@ -89,11 +89,9 @@ parser.add_argument('--kl_temp', type=float, default=1)
 parser.add_argument('--loss_c_temp', type=float, default=1)
 parser.add_argument('--gamma_temp', type=float, default=1)
 parser.add_argument('--gamma_scaling', type=str, default=None)
-parser.add_argument('--no_mask_grads', type=str2bool, default=False)
-parser.add_argument('--mask_threshold', type=float, default=0.9)
+
+
 parser.add_argument('--use_sigmoid', type=str2bool, default=True)
-
-
 parser.add_argument('--wandb_project', type=str, default="test")
 parser.add_argument('--frozen_target_save_path', type=str, default=None)
 parser.add_argument('--frozen_target', type=str2bool, default=False)
@@ -118,7 +116,6 @@ parser.add_argument('--train_vit', type=str2bool, default=True, help="if False, 
 parser.add_argument('--lora_rank', type=int, default=None, help="if not None, use lora with this rank")
 
 
-parser.add_argument('--dino_repo_path', type=str, default="/Users/dw/code/pytorch/dinov2", help="path to dino repo")
 parser.add_argument('--dino_path', type=str, default="/Users/dw/code/pytorch/gammassl/models/dinov2.pth", help="path to dino model weights")
 
 
@@ -187,7 +184,6 @@ if socket.gethostname() == "smaug":
     opt.cityscapes_dataroot = "/home/dsww/data/"
     opt.unlabelled_dataroot = "/mnt/data/bdd100k"
     opt.dino_path = "/home/dsww/networks/dinov2/dinov2.pth"
-    opt.dino_repo_path = "/home/dsww/code/dinov2"
     opt.bdd_val_dataroot = "/home/dsww/data/bdd_10k"
 elif opt.use_cpu:
     opt.batch_size = 2

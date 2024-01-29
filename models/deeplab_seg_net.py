@@ -167,7 +167,6 @@ if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dino_path", type=str, default="/Users/dw/networks/dinov2/dinov2.pth")
-    argparser.add_argument("--dino_repo_path", type=str, default="/Users/dw/code/pytorch/dinov2")
     argparser.add_argument("--use_lora", type=bool, default=False)
     argparser.add_argument("--lora_rank", type=bool, default=4)
     argparser.add_argument("--include_void", type=bool, default=False)

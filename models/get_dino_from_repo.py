@@ -33,9 +33,8 @@ def interpolate_pos_encoding(pos_embed, x, w, h, patch_size):
     return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(previous_dtype)
 
 
-def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", dino_repo_path="/Users/dw/code/pytorch/dinov2", lora_rank=None, vit_size="small"):
-    sys.path.append(dino_repo_path)
-
+def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=None, vit_size="small"):
+    sys.path.append("../dinov2")
     if vit_size == "small":
         from dinov2.models.vision_transformer import vit_small
         dino_repo = vit_small(
