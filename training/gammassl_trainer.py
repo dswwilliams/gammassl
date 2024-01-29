@@ -47,6 +47,7 @@ class Trainer(BaseTrainer):
         self.model.model_to_train()
 
         ### calculate prototypes ###
+        print("calculating prototypes...")
         if self.opt.use_proto_seg:
             prototypes = self.model.calculate_batch_prototypes()
 
@@ -73,7 +74,7 @@ class Trainer(BaseTrainer):
         ### backprop loss ###
         model_loss = 0
         for key, loss in losses.items():
-            weight = self.loss_weights[key.replace("loss_", "w_")]
+            weight = self.loss_weights.get(key.replace("loss_", "w_"), 1)
             model_loss += weight * loss
         (model_loss).backward()
 
@@ -135,7 +136,6 @@ class Trainer(BaseTrainer):
             seg_masks_q_tB = self.model.proto_segment_features(
                                                     features=raw_features_q_tB, 
                                                     img_spatial_dims=raw_imgs_q.shape[-2:], 
-                                                    skip_projection=self.opt.skip_projection,
                                                     )
         else:
             seg_masks_q_tB = self.model.seg_net.get_query_seg_masks(raw_imgs_q_tB, include_void=False, high_res=True)

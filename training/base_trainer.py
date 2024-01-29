@@ -24,7 +24,7 @@ class BaseTrainer():
                     "vegetation", "terrain", "sky", "person", "rider", "car", "truck", "bus", "train", "motorcycle", "bicycle"]
         
         # setting up logging of results
-        wandb.init(project="test", config=self.opt)
+        wandb.init(project=self.opt.wandb_project, config=self.opt)
         
         # init
         self.epoch = 0
@@ -38,10 +38,12 @@ class BaseTrainer():
 
     ##########################################################################################################################################################
     def _init_device(self):
-        if self.opt.use_cpu == False:
-            device_id = 'cuda:' + self.opt.gpu_no
+        # if available (and not overwridden by opt.use_cpu) use GPU, else use CPU
+        if torch.cuda.is_available() and self.opt.use_cpu == False:
+            device_id = "cuda:" + self.opt.gpu_no
         else:
-            device_id = 'cpu'
+            device_id = "cpu"
+        
         print("Device: ", device_id)
         self.device = torch.device(device_id)
     ##########################################################################################################################################################
@@ -159,7 +161,7 @@ class BaseTrainer():
             for (labelled_dict, raw_dict) in tqdm(self.dataloader):
 
                 ### validation ###
-                if (self.it_count % self.opt.full_validation_every == 0):
+                if (self.it_count % self.opt.val_every == 0):
                     self.model.model_to_eval()
                     if not self.opt.skip_validation:
                         if self.opt.use_proto_seg:
@@ -224,12 +226,6 @@ class BaseTrainer():
         SKIP_SAVE = False
 
         if self.opt.network_destination is not None:
-            if not os.path.isdir(self.opt.network_destination):
-                os.makedirs(self.opt.network_destination)
-        elif self.opt.exp_name is not None:
-            from os.path import expanduser
-            home = expanduser("~")
-            self.opt.network_destination = os.path.join(home, "networks", self.opt.exp_name)
             if not os.path.isdir(self.opt.network_destination):
                 os.makedirs(self.opt.network_destination)
         else:

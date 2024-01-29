@@ -30,16 +30,10 @@ class Sharpener(nn.Module):
 
 
 class TrueCrossEntropy(nn.Module):
-    def __init__(self, dim, reduction="mean", class_weights=None, void_class_id=19, gamma_class_weight=1):
+    def __init__(self, dim, reduction="mean"):
         super(TrueCrossEntropy, self).__init__()
         self.dim = dim
         self.reduction = reduction
-
-
-        self.class_weights = torch.ones(void_class_id+1)
-        self.class_weights[void_class_id] = gamma_class_weight
-        self.class_weights = self.class_weights.unsqueeze(0).unsqueeze(2).unsqueeze(3)
-        print("TrueCrossEntropy class weights", self.class_weights.flatten())
 
     def forward(self, target_probs, query_probs):
         """ 
@@ -55,8 +49,6 @@ class TrueCrossEntropy(nn.Module):
         q = q + 1e-7
 
         xent = torch.log(q**-p)
-        if self.class_weights is not None:
-            xent = xent * self.class_weights[:,:xent.shape[1],:,:].to(xent.device)
             
         xent = torch.sum(xent, dim=self.dim, keepdim=False)
         if self.reduction == "mean":
@@ -82,45 +74,18 @@ class GammaSSLLosses:
 
         self.sharpen = Sharpener(temp=opt.sharpen_temp)
 
-        ### loading in class weights ###
-        if not self.opt.sunrgbd:                # dont have class weights for sunrgbd -> can't use class weights
-            if self.opt.use_class_weights_sup or self.opt.use_class_weights_ssl:
-                if self.opt.use_cpu:
-                    with open(os.path.join("/Users/dw/data/class_weights/cityscapes_class_weights_19c.pkl"), "rb") as file:
-                        class_weights = np.array(pickle.load(file))
-                        class_weights = torch.from_numpy(class_weights).float().to(self.device)
-                else:
-                    with open(os.path.join(self.opt.cityscapes_class_weights_path), "rb") as file:
-                        class_weights = np.array(pickle.load(file))
-                        class_weights = torch.from_numpy(class_weights).float().to(self.device)
-                class_weights = class_weights/class_weights.min()
-                class_weights = (class_weights - class_weights.min())/2 + class_weights.min()
-            else:
-                class_weights = torch.ones(self.num_known_classes).to(self.device)
-        else:
-            class_weights = torch.ones(self.num_known_classes).to(self.device)
-
         ### setting up loss functions ###
         if self.opt.include_void:
             ignore_index = -100             # i.e. void class is included in supervised loss
             # add class weight for void class
-            class_weights = torch.cat((class_weights, class_weights.mean()*torch.ones(1, device=class_weights.device)), dim=0)
         else:
             # ignore void pixel labels
             ignore_index = self.num_known_classes
-        print("class_weights: ", class_weights)
 
         # define supervised loss function
-        if self.opt.use_class_weights_sup:
-            self.sup_xent_loss_fn = nn.CrossEntropyLoss(reduction="none", weight=class_weights, ignore_index=ignore_index)
-        else:
-            self.sup_xent_loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
+        self.sup_xent_loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
 
-        # define self-supervised loss function
-        if self.opt.use_class_weights_ssl:
-            self.ssl_xent_loss_fn = TrueCrossEntropy(dim=1, reduction="none", class_weights=class_weights, void_class_id=self.num_known_classes)
-        else:
-            self.ssl_xent_loss_fn = TrueCrossEntropy(dim=1, reduction="none", void_class_id=self.num_known_classes)
+        self.ssl_xent_loss_fn = TrueCrossEntropy(dim=1, reduction="none")
 
         from models.matcher import HungarianMatcher
         self.m2f_criterion = SetCriterion(
@@ -263,11 +228,7 @@ class GammaSSLLosses:
         ### mask certain regions ###
         certainty_mask = (1 - gamma_masks_q.float())
         # patch is masked if masks_i = 1, else is not masked
-        if self.opt.loss_c_unmasked_only:
-            # only calculate the loss where raw_masks_q = 0
-            global_mask = (certainty_mask * (1-raw_masks_q.float()))
-        else:
-            global_mask = certainty_mask
+        global_mask = certainty_mask
 
         if valid_masking_region_masks is not None:
             # only compute loss for regions that could have been masked, i.e. are uncertain according to the target

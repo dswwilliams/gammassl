@@ -90,7 +90,7 @@ class DeepLabSegNet(BaseSegNet):
 
         ################################################################################################
         ### define projection network ###
-        if not self.opt.skip_projection:
+        if self.opt.use_proto_seg:
             nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder.out_channels[-1]
             from models.projection_networks import ProjectionMLP
             self.projection_net = ProjectionMLP(
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     argparser.add_argument("--decode_head", type=str, default="setr")
     argparser.add_argument("--vit_size", type=str, default="small")
     argparser.add_argument("--nheads", type=int, default=1)
-    argparser.add_argument("--skip_projection", type=bool, default=False)
+    argparser.add_argument("--use_proto_seg", type=bool, default=False)
     argparser.add_argument("--train_encoder", type=bool, default=True)
     opt = argparser.parse_args()
 

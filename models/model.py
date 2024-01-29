@@ -124,38 +124,13 @@ class SegmentationModel(nn.Module):
 
     def _init_optimizers(self):
         _optimizer = torch.optim.AdamW
+        encoder_lr = self.opt.lr_encoder if self.opt.lr_encoder is not None else self.opt.lr
 
         # setup optmisers for each model part 
         self.optimizers = {}
 
-        if self.opt.lr_encoder is not None:
-            encoder_lr = self.opt.lr_encoder
-        else:
-            encoder_lr = self.opt.lr
 
-        if self.opt.use_vit_adapter:
-            # not updating ViT blocks, pos_embed_interpolated, patch_embed, cls_token
-            params_to_update = []
-            names_of_params_not_to_update = []
-            for name, param in self.seg_net.encoder.named_parameters():
-                if "blocks" in name:
-                    names_of_params_not_to_update.append(name)
-                elif name == "pos_embed_interpolated":
-                    names_of_params_not_to_update.append(name)
-                elif "patch_embed" in name:
-                    names_of_params_not_to_update.append(name)
-                elif name == "cls_token":
-                    names_of_params_not_to_update.append(name)
-                else:
-                    params_to_update.append(param)
-
-            self.optimizers["encoder"] = _optimizer(
-                                            params=params_to_update, 
-                                            lr=encoder_lr, 
-                                            weight_decay=self.opt.model_weight_decay,
-                                            betas=(0.9, 0.999),         # default
-                                            )
-        elif self.opt.lora_rank is not None:
+        if self.opt.lora_rank is not None:
             encoder_trainable_params = []
             for name, param in self.seg_net.encoder.named_parameters():
                 if "lora" in name:
@@ -178,16 +153,16 @@ class SegmentationModel(nn.Module):
 
         self.optimizers["decoder"] = _optimizer(
                                             params=list(self.seg_net.decoder.parameters()), 
-                                            lr=self.opt.lr*self.opt.lr_mult, 
-                                            weight_decay=self.opt.model_weight_decay*self.opt.decay_mult,
+                                            lr=self.opt.lr, 
+                                            weight_decay=self.opt.model_weight_decay,
                                             betas=(0.9, 0.999),         # default
                                             )
 
         if self.seg_net.projection_net is not None:
             self.optimizers["projection_net"] = _optimizer(
                                         params=list(self.seg_net.projection_net.parameters()), 
-                                        lr=self.opt.lr*self.opt.lr_mult, 
-                                        weight_decay=self.opt.model_weight_decay*self.opt.decay_mult,
+                                        lr=self.opt.lr, 
+                                        weight_decay=self.opt.model_weight_decay,
                                         betas=(0.9, 0.999),         # default
                                         )
 
@@ -195,7 +170,7 @@ class SegmentationModel(nn.Module):
         self.schedulers = {}
         if self.opt.lr_policy == None:
             pass
-        if self.opt.lr_policy == "poly":
+        elif self.opt.lr_policy == "poly":
             for network in self.optimizers:
                 self.schedulers[network] = torch.optim.lr_scheduler.PolynomialLR(self.optimizers[network], power=1.0, total_iters=self.opt.total_iters)
 
@@ -213,16 +188,13 @@ class SegmentationModel(nn.Module):
     def model_to_eval(self):
         self.seg_net.eval()
 
-    def proto_segment_features(self, features, img_spatial_dims=None, use_dataset_prototypes=False, skip_projection=False, include_void=False):
+    def proto_segment_features(self, features, img_spatial_dims=None, use_dataset_prototypes=False, include_void=False):
         if use_dataset_prototypes:
             prototypes = self.dataset_prototypes
         else:
             prototypes = self.batch_prototypes
         
-        if skip_projection or self.opt.skip_projection:
-            proj_features = features
-        else:
-            proj_features = self.seg_net.projection_net(features)
+        proj_features = self.seg_net.projection_net(features)
 
         if include_void:
             _gamma = self.gamma
@@ -239,11 +211,8 @@ class SegmentationModel(nn.Module):
             seg_masks_q_tB = F.interpolate(seg_masks_q_tB, size=(H,W), mode="bilinear", align_corners=True)
         return seg_masks_q_tB
 
-    def proto_segment_imgs(self, imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=None, skip_projection=False):
-        if skip_projection or self.opt.skip_projection:
-            features = self.seg_net.extract_features(imgs, masks=masks)
-        else:
-            features = self.seg_net.extract_proj_features(imgs, masks=masks)
+    def proto_segment_imgs(self, imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=None):
+        features = self.seg_net.extract_proj_features(imgs, masks=masks)
 
         if use_dataset_prototypes:
             prototypes = self.dataset_prototypes
@@ -291,10 +260,7 @@ class SegmentationModel(nn.Module):
         
 
         # calculate prototypes from images and labels
-        if not self.opt.skip_projection:
-            labelled_features_A = self.seg_net.extract_proj_features(labelled_imgs_A)
-        else:
-            labelled_features_A = self.seg_net.extract_features(labelled_imgs_A)
+        labelled_features_A = self.seg_net.extract_proj_features(labelled_imgs_A)
 
 
         # upsample labels to multiple of feature dimension in order to use class_weighted_modal_downsampling (it needs an integer downsmple factor)
@@ -352,10 +318,8 @@ class SegmentationModel(nn.Module):
                     labels = F.interpolate(labels.unsqueeze(1).float(), size=(new_labels_spatial_dim, new_labels_spatial_dim), mode="nearest").squeeze(1).long()
                     low_res_labels = self.class_weighted_modal_downsampling(labels, downsample_factor=new_labels_spatial_dim // feature_spatial_dim)
 
-                if not self.opt.skip_projection:
-                    labelled_features = self.seg_net.extract_proj_features(labelled_imgs)
-                else:
-                    labelled_features = self.seg_net.extract_features(labelled_imgs)
+
+                labelled_features = self.seg_net.extract_proj_features(labelled_imgs)
                 prototypes = self.extract_prototypes(labelled_features, low_res_labels, output_metrics=False)
 
                 prototypes_sum += prototypes
@@ -370,60 +334,6 @@ class SegmentationModel(nn.Module):
         else:
             return None
         
-    @torch.no_grad()
-    def calculate_dataset_prototypes_target(self):
-        if self.opt.prototypes_path is None:
-            """ Calculate prototype from entire dataset """
-            dataloader = torch.utils.data.DataLoader(self.val_proto_dataset, batch_size=self.opt.batch_size, shuffle=True, num_workers=self.opt.num_workers, drop_last=True)
-
-            self.device = next(self.seg_net.parameters()).device
-            
-            iterator = tqdm(dataloader)
-            print("calculating dataset prototypes...")
-            prototypes_sum = 0
-            for step, (labelled_dict,_) in enumerate(iterator):
-                labelled_imgs = labelled_dict["img"].to(self.device)
-                labels = labelled_dict["label"].to(self.device) 
-
-                if self.opt.use_deep_features:
-                    # upsample labels to multiple of feature dimension in order to use class_weighted_modal_downsampling (it needs an integer downsmple factor)
-                    feature_spatial_dim = 64
-                    labels_spatial_dim = labels.shape[-1]
-                    new_labels_spatial_dim = int(np.ceil(labels_spatial_dim/feature_spatial_dim) * feature_spatial_dim)
-                    labels = F.interpolate(labels.unsqueeze(1).float(), size=(new_labels_spatial_dim, new_labels_spatial_dim), mode="nearest").squeeze(1).long()
-                    low_res_labels = self.class_weighted_modal_downsampling(labels, downsample_factor=new_labels_spatial_dim // feature_spatial_dim)
-                else:
-                    # NOTE this is SOOO small (even smaller than patch embeddings)
-                    feature_spatial_dim = 16
-                    labels_spatial_dim = labels.shape[-1]
-                    new_labels_spatial_dim = int(np.ceil(labels_spatial_dim/feature_spatial_dim) * feature_spatial_dim)
-                    labels = F.interpolate(labels.unsqueeze(1).float(), size=(new_labels_spatial_dim, new_labels_spatial_dim), mode="nearest").squeeze(1).long()
-                    low_res_labels = self.class_weighted_modal_downsampling(labels, downsample_factor=new_labels_spatial_dim // feature_spatial_dim)
-
-                # if not self.opt.skip_projection:
-                #     labelled_features = self.seg_net.extract_proj_features(labelled_imgs)
-                # else:
-                #     labelled_features = self.seg_net.extract_features(labelled_imgs)
-                labelled_imgs = labelled_imgs.to("mps")
-                self.target_seg_net = self.target_seg_net.to("mps")
-                labelled_features = self.target_seg_net.extract_features(labelled_imgs, use_deep_features=False)
-                labelled_features = labelled_features.to("cpu")
-                print(f"Labelled features shape: {labelled_features.shape}")
-                print(f"low_res_labels shape: {low_res_labels.shape}")
-                prototypes = self.extract_prototypes(labelled_features, low_res_labels, output_metrics=False)
-
-                prototypes_sum += prototypes
-
-                if step > 500:
-                    break
-
-            prototypes = F.normalize(prototypes_sum, dim=0, p=2)          # shape: [feature_length, num_known_classes]
-
-            self.dataset_prototypes = prototypes
-            return self.dataset_prototypes
-        else:
-            return None
-    
     ##########################################################################################################################################################
     def update_gamma(self, seg_masks_q, seg_masks_t):
 

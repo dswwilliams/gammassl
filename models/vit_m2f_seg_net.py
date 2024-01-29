@@ -51,38 +51,14 @@ class ViT_M2F_SegNet(BaseSegNet):
                                                         mask_dim=256,                   # dim of mask embed, which needs to the same as the dim of the mask features
                                                         enforce_input_project=False,
                                                         )
-        if self.opt.proj_query_pup:
-            target_pup = decoder_pup
 
-            from models.projection_networks import ProjectionMLP
-            projection_net = ProjectionMLP(
-                                    input_feature_len=self.encoder_dim,
-                                    output_feature_len=self.encoder_dim, 
-                                    dropout_prob=None,
-                                    ).to(self.device)
-            # project at low res -> learned upsampling
-            query_pup = nn.Sequential(projection_net, copy.deepcopy(target_pup),)
-
-            class Decoder(nn.Module):
-                def __init__(self,):
-                    super().__init__()
-                    """
-                    - have two different progressive upsamplers for each of target and query branches
-                    """
-                    self.target_pup = target_pup
-                    self.query_pup = query_pup
-                    self.transformer_decoder = transformer_decoder
-                def forward():
-                    pass
-
-        else:
-            class Decoder(nn.Module):
-                def __init__(self,):
-                    super().__init__()
-                    self.decoder_pup = decoder_pup
-                    self.transformer_decoder = transformer_decoder
-                def forward():
-                    pass
+        class Decoder(nn.Module):
+            def __init__(self,):
+                super().__init__()
+                self.decoder_pup = decoder_pup
+                self.transformer_decoder = transformer_decoder
+            def forward():
+                pass
 
         self.decoder = Decoder()
 
@@ -90,14 +66,13 @@ class ViT_M2F_SegNet(BaseSegNet):
 
         ################################################################################################
         ### define projection network ###
-        if not self.opt.skip_projection:
-            nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder_dim
-            from models.projection_networks import ProjectionMLP
-            self.projection_net = ProjectionMLP(
-                                    input_feature_len=nonproj_len, 
-                                    output_feature_len=self.prototype_len, 
-                                    dropout_prob=None,
-                                    ).to(self.device)
+        nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder_dim
+        from models.projection_networks import ProjectionMLP
+        self.projection_net = ProjectionMLP(
+                                input_feature_len=nonproj_len, 
+                                output_feature_len=self.prototype_len, 
+                                dropout_prob=None,
+                                ).to(self.device)
         ################################################################################################
 
         ################################################################################################
@@ -159,33 +134,23 @@ class ViT_M2F_SegNet(BaseSegNet):
 
 
         # do this with the target branch, extract_m2f_output() is used in labelled task
-        deep_features_list = self.decode_features(shallow_features, return_list=True, target=True)
+        deep_features_list = self.decode_features(shallow_features, return_list=True)
 
         output = self.decoder.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
         output["pred_masks"] = F.interpolate(output["pred_masks"], size=(H, W), mode="bilinear", align_corners=False)
         return output
 
     
-    def decode_features(self, x, return_list=True, target=False, query=False):
+    def decode_features(self, x, return_list=True):
         """
         decodes features from encoder
         input: x.shape = [batch_size, (H//patch_size)*(W//patch_size)+1, encoder_dim]
         """
-        if target and self.opt.proj_query_pup:
-            if return_list:
-                return self.decoder.target_pup(x)
-            else:
-                return self.decoder.target_pup(x)[-1]
-        elif query and self.opt.proj_query_pup:
-            if return_list:
-                return self.decoder.query_pup(x)
-            else:
-                return self.decoder.query_pup(x)[-1]
+
+        if return_list:
+            return self.decoder.decoder_pup(x)
         else:
-            if return_list:
-                return self.decoder.decoder_pup(x)
-            else:
-                return self.decoder.decoder_pup(x)[-1]
+            return self.decoder.decoder_pup(x)[-1]
 
     def extract_proj_features(self, x, masks=None): 
         """ extract projected features """
@@ -217,7 +182,7 @@ class ViT_M2F_SegNet(BaseSegNet):
             shallow_features = shallow_features.reshape(bs, C, H//self.encoder.patch_size, W//self.encoder.patch_size)
 
 
-        deep_features_list = self.decode_features(shallow_features, return_list=True, target=target, query=query)
+        deep_features_list = self.decode_features(shallow_features, return_list=True)
 
         output = self.decoder.transformer_decoder(x=deep_features_list[:-1], mask_features=deep_features_list[-1])
         if high_res:
@@ -250,8 +215,6 @@ if __name__ == "__main__":
     argparser.add_argument("--include_void", type=bool, default=False)
     argparser.add_argument("--use_deep_features", type=bool, default=False)
     argparser.add_argument("--intermediate_dim", type=int, default=256)
-    argparser.add_argument("--skip_projection", type=bool, default=False)
-    argparser.add_argument("--proj_query_pup", type=bool, default=False)
     argparser.add_argument("--prototype_len", type=int, default=256)
     argparser.add_argument("--decode_head", type=str, default="setr")
     argparser.add_argument("--vit_size", type=str, default="small")

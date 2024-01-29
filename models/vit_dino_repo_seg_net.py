@@ -33,16 +33,15 @@ class ViTDINOSegNet(BaseSegNet):
         ### choosing decoder ###
 
         # setr_pup
-        if self.opt.decode_head == "setr":
-            from models.setr_decode_head import SETRUPHead
-            self.decode_head = SETRUPHead(
-                                    total_upsample_factor=self.backbone.patch_size,
-                                    kernel_size=3, 
-                                    in_channels=self.backbone_dim, 
-                                    out_channels=self.intermediate_dim, 
-                                    patch_size=self.backbone.patch_size,
-                                    round_down_spatial_dims=True,
-                                    )
+        from models.setr_decode_head import SETRUPHead
+        self.decode_head = SETRUPHead(
+                                total_upsample_factor=self.backbone.patch_size,
+                                kernel_size=3, 
+                                in_channels=self.backbone_dim, 
+                                out_channels=self.intermediate_dim, 
+                                patch_size=self.backbone.patch_size,
+                                round_down_spatial_dims=True,
+                                )
         ################################################################################################
 
         ################################################################################################

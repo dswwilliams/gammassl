@@ -17,5 +17,11 @@
     3. ViT + FrozenTarget + Masking
 
 
+### TODO
+* Link this repo to a forked version of the DINOv2 repo 
+    * therefore can include my changes to it, e.g. lora
+* Put up a forked version of DINOv2 repo on my github
+
+
 
 
