@@ -18,87 +18,49 @@ parser = argparse.ArgumentParser()
 ### ###
 
 
-### ###
-parser.add_argument('--gamma_reject_prop', type=float, default=0.5)
 ### objective opts ###
-parser.add_argument('--mask_input', type=str2bool, default=False)
-parser.add_argument('--use_proto_seg', type=str2bool, default=False)
-parser.add_argument('--train_encoder', type=str2bool, default=False)
-parser.add_argument('--model_arch', type=str, default="vit_m2f")
 
 
 
 
-parser.add_argument('--no_colour', type=str2bool, default=False)
-parser.add_argument('--use_sax_png_dataset', type=str2bool, default=False)
 
-parser.add_argument('--bdd_raw_dataroot', type=str, default="/Users/dw/data/bdd100k")
-parser.add_argument('--train_on_bdd', type=str2bool, default=False)
-parser.add_argument('--val_on_bdd', type=str2bool, default=False)
-parser.add_argument('--bdd_val_dataroot', type=str, default="/Users/dw/data/bdd_10k")
-parser.add_argument('--warmup_masking_num_its', type=int, default=0)
-parser.add_argument('--loss_c_masked_only', type=str2bool, default=False)
-parser.add_argument('--use_dinov1', type=str2bool, default=False)
-parser.add_argument('--dinov1_repo_path', type=str, default="/Users/dw/code/pytorch/dino")
-parser.add_argument('--dinov1_path', type=str, default="/Users/dw/networks/dinov1.pth")
-parser.add_argument('--ms_imgs_from_unmasked', type=str2bool, default=True)
-parser.add_argument('--mlp_dropout_prob', type=float, default=0.0)
-parser.add_argument('--attn_dropout_prob', type=float, default=0.0)
-parser.add_argument('--run_sup_task_only', type=str2bool, default=False)
-parser.add_argument('--no_random_seed', type=str2bool, default=False)
-parser.add_argument('--semihard_unmasked_prop', type=float, default=0.5)
-parser.add_argument('--use_semihard', type=str2bool, default=False)
-parser.add_argument('--masking_model_save_path', type=str, default=None)
-parser.add_argument('--use_masking_model', type=str2bool, default=False)
-parser.add_argument('--use_soft_mask', type=str2bool, default=False)
-parser.add_argument('--use_gumbel_aug', type=str2bool, default=False)
-parser.add_argument('--mask_temp', type=float, default=1)
-parser.add_argument('--use_topk_aug', type=str2bool, default=False)
-parser.add_argument('--topk_prop', type=float, default=0.5)
-parser.add_argument('--use_topk', type=str2bool, default=False)
-parser.add_argument('--gumbel_temp', type=float, default=1)
-parser.add_argument('--use_gumbel', type=str2bool, default=False)
-parser.add_argument('--masking_net', type=str, default="cnn")
-parser.add_argument('--w_masking_prob', type=float, default=1)
-parser.add_argument('--learned_masking_prob', type=float, default=0.5)
-parser.add_argument('--lr_masking', type=float, default=1e-4)
-parser.add_argument('--run_mask_learning_task', type=str2bool, default=False)
-parser.add_argument('--cu_loss', type=str, default="xent")
-parser.add_argument('--w_fu', type=float, default=1)
-parser.add_argument('--w_c_cu', type=float, default=1)
-parser.add_argument('--w_c_ic', type=float, default=1)
-parser.add_argument('--optim_middle', type=str2bool, default=False)
-parser.add_argument('--mask_prob_total_iters', type=int, default=125)
-parser.add_argument('--get_new_mask_prob_every', type=int, default=125)
-parser.add_argument('--mask_prob_schedule', type=str, default="random")
-parser.add_argument('--min_mask_prob', type=float, default=None)
-parser.add_argument('--max_mask_prob', type=float, default=None)
-parser.add_argument('--use_sigmoid_for_query_unmasked', type=str2bool, default=True)
-parser.add_argument('--soft_consistency_fn', type=str, default="xent")
-parser.add_argument('--val_soft_consistency', type=str2bool, default=False)
-parser.add_argument('--mask_both', type=str2bool, default=False)
-parser.add_argument('--val_transforms', type=str2bool, default=False)
-parser.add_argument('--query_mask_region', type=str, default="uncertain")
-parser.add_argument('--val_only_consistency', type=str2bool, default=False)
+
+
+
+
+# TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+
+
+
+
+
 parser.add_argument('--output_rank_metrics', type=str2bool, default=False)
 parser.add_argument('--val_with_sigmoid', type=str2bool, default=True)
 parser.add_argument('--val_temp', type=float, default=1)
-parser.add_argument('--query_mask_temp', type=float, default=1)
-parser.add_argument('--query_mask_scaling', type=str, default=None)
-parser.add_argument('--kl_temp', type=float, default=1)
-parser.add_argument('--loss_c_temp', type=float, default=1)
-parser.add_argument('--gamma_temp', type=float, default=1)
+parser.add_argument('--loss_c_temp', type=float, default=0.1)
+parser.add_argument('--gamma_temp', type=float, default=0.1)
+
+
+
 parser.add_argument('--gamma_scaling', type=str, default=None)
-
-
 parser.add_argument('--use_sigmoid', type=str2bool, default=True)
 parser.add_argument('--wandb_project', type=str, default="test")
 parser.add_argument('--frozen_target_save_path', type=str, default=None)
 parser.add_argument('--frozen_target', type=str2bool, default=False)
 
+# TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
 
 
+parser.add_argument('--mask_input', type=str2bool, default=False, help="data augmentation: whether to mask input images")
+parser.add_argument('--use_proto_seg', type=str2bool, default=False, help="whether to use prototype segmentation")
+parser.add_argument('--model_arch', type=str, default="vit_m2f", help="model architecture: vit_m2f or deeplab")
 
+parser.add_argument('--train_encoder', type=str2bool, default=False, help="if False, no grads w.r.t. the encoder")
+parser.add_argument('--no_colour', type=str2bool, default=False, help="if True, no colour transforms are applied to training images")
+
+
+parser.add_argument('--bdd_val_dataroot', type=str, default="/Users/dw/data/bdd_10k", help="path to bdd100k validation dataset")
+parser.add_argument('--val_transforms', type=str2bool, default=False, help="whether to colour-transform val images")
 
 
 parser.add_argument('--sharpen_temp', type=float, default=None, help="temperature for sharpening of output distribution")

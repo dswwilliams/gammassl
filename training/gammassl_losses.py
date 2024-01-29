@@ -309,51 +309,51 @@ class GammaSSLLosses:
             return loss_c, ssl_metrics
     ##########################################################################################################################################################
 
-    ##########################################################################################################################################################
-    def calculate_kl_uniform_loss(self, seg_masks_q, gamma_masks_q):
-        ### calculating consistency loss ###
-        # where certain, minimise cross-entropy over ALL K classes 
+    # ##########################################################################################################################################################
+    # def calculate_kl_uniform_loss(self, seg_masks_q, gamma_masks_q):
+    #     ### calculating consistency loss ###
+    #     # where certain, minimise cross-entropy over ALL K classes 
         
-        kld_metrics = {}
+    #     kld_metrics = {}
 
-        if self.opt.sharpen_temp is not None:
-            _sharpen = self.sharpen
-        else:
-            _sharpen = lambda x: x
+    #     if self.opt.sharpen_temp is not None:
+    #         _sharpen = self.sharpen
+    #     else:
+    #         _sharpen = lambda x: x
 
-        logits_1_to_K_q = seg_masks_q / (self.opt.kl_temp)
+    #     logits_1_to_K_q = seg_masks_q / (self.opt.kl_temp)
 
-        # compute KL divergence between uniform and softmax
-        # kl_target is uniform distribution over K classes
-        kl_target = torch.ones_like(logits_1_to_K_q) / logits_1_to_K_q.shape[1]
-        kld = F.kl_div(
-                    input=torch.log_softmax(logits_1_to_K_q, dim=1), 
-                    target=kl_target, 
-                    reduction="none",
-                    ).sum(1)
+    #     # compute KL divergence between uniform and softmax
+    #     # kl_target is uniform distribution over K classes
+    #     kl_target = torch.ones_like(logits_1_to_K_q) / logits_1_to_K_q.shape[1]
+    #     kld = F.kl_div(
+    #                 input=torch.log_softmax(logits_1_to_K_q, dim=1), 
+    #                 target=kl_target, 
+    #                 reduction="none",
+    #                 ).sum(1)
 
 
-        # we only backprop loss on uncertain regions
-        uncertainty_mask = gamma_masks_q.float()      # 1 where uncertain, 0 where certain
+    #     # we only backprop loss on uncertain regions
+    #     uncertainty_mask = gamma_masks_q.float()      # 1 where uncertain, 0 where certain
 
-        with torch.no_grad():
-            max_softmax_query = torch.softmax(logits_1_to_K_q, dim=1).max(dim=1)[0]     # [bs, h, w]
+    #     with torch.no_grad():
+    #         max_softmax_query = torch.softmax(logits_1_to_K_q, dim=1).max(dim=1)[0]     # [bs, h, w]
 
-            print(f"in calculate_kl_uniform_loss, max_softmax_query min mean max: {max_softmax_query.min()}, {max_softmax_query.mean()}, {max_softmax_query.max()}")
+    #         print(f"in calculate_kl_uniform_loss, max_softmax_query min mean max: {max_softmax_query.min()}, {max_softmax_query.mean()}, {max_softmax_query.max()}")
 
-            kld_metrics["mean_max_softmax_query_uncertain"] = (max_softmax_query * uncertainty_mask).sum() / uncertainty_mask.sum()
-            kld_metrics["mean_max_softmax_query_certain"] = (max_softmax_query * (1-uncertainty_mask)).sum() / (1-uncertainty_mask).sum()
+    #         kld_metrics["mean_max_softmax_query_uncertain"] = (max_softmax_query * uncertainty_mask).sum() / uncertainty_mask.sum()
+    #         kld_metrics["mean_max_softmax_query_certain"] = (max_softmax_query * (1-uncertainty_mask)).sum() / (1-uncertainty_mask).sum()
 
-        if not self.opt.no_filtering:
-            if uncertainty_mask.sum() == 0:
-                loss_kl = torch.zeros_like(kld, requires_grad=True)[0,0,0]
-            else:
-                loss_kl = (kld * uncertainty_mask).sum() / uncertainty_mask.sum()
-        else:
-            loss_kl = torch.zeros_like(kld.mean())
+    #     if not self.opt.no_filtering:
+    #         if uncertainty_mask.sum() == 0:
+    #             loss_kl = torch.zeros_like(kld, requires_grad=True)[0,0,0]
+    #         else:
+    #             loss_kl = (kld * uncertainty_mask).sum() / uncertainty_mask.sum()
+    #     else:
+    #         loss_kl = torch.zeros_like(kld.mean())
 
-        return loss_kl, kld_metrics
-    ##########################################################################################################################################################
+    #     return loss_kl, kld_metrics
+    # ##########################################################################################################################################################
 
     ######################################################################################################################################################
     def calculate_uniformity_loss(self, features, projection_net=None, rbf_t=2):

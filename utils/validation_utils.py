@@ -66,7 +66,7 @@ def perform_batch_ue_validation(
     segs_K = torch.argmax(seg_masks_K, dim=1)
     
     if not opt.val_with_sigmoid:
-        seg_masks_K = torch.softmax(seg_masks_K/opt.val_temp, dim=1)
+        seg_masks_K = torch.softmax(seg_masks_K/opt.temperature, dim=1)
     ms_imgs = torch.max(seg_masks_K, dim=1)[0]
     uncertainty_maps = 1 - ms_imgs
 

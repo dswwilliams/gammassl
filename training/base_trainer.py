@@ -128,7 +128,7 @@ class BaseTrainer():
                                         name="CityscapesVal",
                                         dataroot=self.opt.cityscapes_dataroot, 
                                         use_imagenet_norm=self.opt.use_imagenet_norm, 
-                                        val_transforms=False,
+                                        val_transforms=self.opt.val_transforms,
                                         patch_size=self.model.patch_size,
                                         )
         self.val_datasets.append(cityscapes_val_dataset)
@@ -138,7 +138,7 @@ class BaseTrainer():
                             name="BDDVal",
                             dataroot=self.opt.bdd_val_dataroot, 
                             use_imagenet_norm=self.opt.use_imagenet_norm, 
-                            val_transforms=False,
+                            val_transforms=self.opt.val_transforms,
                             patch_size=self.model.patch_size,
                             )
         self.val_datasets.append(bdd_val_dataset)

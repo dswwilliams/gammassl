@@ -208,8 +208,6 @@ class Validator():
                                     img_size=val_dataset.crop_sizes, 
                                     patch_size=model.patch_size, 
                                     random_mask_prob=self.opt.random_mask_prob, 
-                                    min_mask_prob=self.opt.min_mask_prob, 
-                                    max_mask_prob=self.opt.max_mask_prob,
                                     )
         else:
             val_collate_fn = None
@@ -351,8 +349,6 @@ class Validator():
                                     img_size=self.model.crop_size, 
                                     patch_size=self.model.patch_size, 
                                     random_mask_prob=self.opt.random_mask_prob, 
-                                    min_mask_prob=self.opt.min_mask_prob, 
-                                    max_mask_prob=self.opt.max_mask_prob,
                                     )
         else:
             val_collate_fn = None
@@ -600,9 +596,6 @@ class Validator():
                                     img_size=val_dataset.crop_sizes, 
                                     patch_size=model.patch_size, 
                                     random_mask_prob=self.opt.random_mask_prob, 
-                                    t_and_q_masks=self.opt.mask_both,
-                                    min_mask_prob=self.opt.min_mask_prob, 
-                                    max_mask_prob=self.opt.max_mask_prob,
                                     )
         else:
             val_collate_fn = None

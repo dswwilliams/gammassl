@@ -23,7 +23,7 @@ class ViT_M2F_SegNet(BaseSegNet):
 
         ################################################################################################
         ### defining encoder ###
-        vit_dino = get_repo_dino(dino_path=self.opt.dino_path, dino_repo_path=self.opt.dino_repo_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)
+        vit_dino = get_repo_dino(dino_path=self.opt.dino_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)
         self.encoder = vit_dino
         self.encoder_dim = vit_dino.embed_dim
         ################################################################################################
@@ -209,7 +209,6 @@ if __name__ == "__main__":
     import argparse
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dino_path", type=str, default="/Users/dw/networks/dinov2/dinov2.pth")
-    argparser.add_argument("--dino_repo_path", type=str, default="/Users/dw/code/pytorch/dinov2")
     argparser.add_argument("--use_lora", type=bool, default=False)
     argparser.add_argument("--lora_rank", type=bool, default=4)
     argparser.add_argument("--include_void", type=bool, default=False)
