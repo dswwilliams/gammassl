@@ -22,10 +22,7 @@ class Trainer(BaseTrainer):
         self.losses = GammaSSLLosses(self.opt, self.device, num_known_classes=len(self.known_class_list))
 
         # for all opts in self.opt, if it starts with "w_" then add it to self.loss_weights
-        self.loss_weights = {}
-        for key, val in vars(self.opt).items():
-            if key[:2] == "w_":
-                self.loss_weights[key] = val
+        self.loss_weights = {key: val for key, val in vars(self.opt).items() if key.startswith("w_")}
 
         self.model.gamma = torch.zeros(1, dtype=torch.float32).to(self.device)
     ##########################################################################################################################################################
@@ -43,6 +40,9 @@ class Trainer(BaseTrainer):
             - calculate prototype loss
         - perform unlabelled task
         - backprop, update model and log losses and metrics
+
+        TODO: 
+        - if sup_loss_only == True, then only perform and backprop labelled task
         """
         losses = {}
         metrics = {}

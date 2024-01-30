@@ -75,7 +75,7 @@ class BaseTrainer():
         from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
         _train_dataset = CityscapesxBDDDataset
 
-        if self.opt.no_unlabelled:        # e.g. if labelled cityscapes only
+        if self.opt.sup_loss_only:        # e.g. if labelled cityscapes only
             _only_labelled = True
         else:
             _only_labelled = False

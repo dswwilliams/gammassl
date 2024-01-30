@@ -259,7 +259,6 @@ class Validator():
                                                             include_void=False, 
                                                             high_res=True, 
                                                             masks=val_masks_t, 
-                                                            use_sigmoid=self.opt.use_sigmoid, 
                                                             )
             else:
                 target_seg_masks = model.seg_net.get_target_seg_masks(
@@ -267,14 +266,13 @@ class Validator():
                                                         include_void=True, 
                                                         high_res=True, 
                                                         masks=val_masks_t, 
-                                                        use_sigmoid=self.opt.use_sigmoid,
                                                         )
 
             target_ms_imgs, target_segs = torch.max(target_seg_masks, dim=1)
 
 
-            query_seg_masks = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
-            query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
+            query_seg_masks = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=val_masks_q)
+            query_seg_masks_unmasked = model.seg_net.get_query_seg_masks(val_imgs, include_void=True, high_res=True, masks=None)
 
             # NOTE: segs from MASKED query seg masks, ms_imgs from UNMASKED query seg masks
             query_segs = torch.argmax(query_seg_masks, dim=1)
@@ -437,7 +435,6 @@ class Validator():
                                                                         include_void=False, 
                                                                         high_res=True, 
                                                                         masks=val_masks_t, 
-                                                                        use_sigmoid=self.opt.use_sigmoid, 
                                                                         )
                 else:
                     seg_masks_t_tAB = model.seg_net.get_target_seg_masks(
@@ -445,14 +442,13 @@ class Validator():
                                                                 include_void=False, 
                                                                 high_res=True, 
                                                                 masks=val_masks_t, 
-                                                                use_sigmoid=self.opt.use_sigmoid, 
                                                                 )
 
 
                 ### query branch ###
                 raw_imgs_q_tB = raw_imgs_q
-                seg_masks_q_tBA_masked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=val_masks_q, use_sigmoid=self.opt.use_sigmoid)
-                seg_masks_q_tBA_unmasked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=None, use_sigmoid=self.opt.use_sigmoid)
+                seg_masks_q_tBA_masked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=val_masks_q)
+                seg_masks_q_tBA_unmasked = model.seg_net.get_query_seg_masks(raw_imgs_q, include_void=True, high_res=True, masks=None)
 
                 # un-normalise raw_imgs
                 raw_imgs_t_tA = raw_imgs_t_tA * torch.tensor([0.229, 0.224, 0.225], device=device).view(1,3,1,1) 

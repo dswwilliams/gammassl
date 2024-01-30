@@ -56,17 +56,15 @@ def perform_batch_ue_validation(
         if opt.use_proto_seg:
             seg_masks_K = model.proto_segment_imgs(val_imgs, use_dataset_prototypes=True)
         else:
-            seg_masks_K = model.seg_net.get_query_seg_masks(val_imgs, include_void=False, high_res=True, use_sigmoid=opt.val_with_sigmoid)
+            seg_masks_K = model.seg_net.get_query_seg_masks(val_imgs, include_void=False, high_res=True)
     elif branch == "target":
         if opt.frozen_target:
-            seg_masks_K = model.target_seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True, use_sigmoid=opt.val_with_sigmoid)
+            seg_masks_K = model.target_seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True)
         else:
-            seg_masks_K = model.seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True, use_sigmoid=opt.val_with_sigmoid)
+            seg_masks_K = model.seg_net.get_target_seg_masks(val_imgs, include_void=False, high_res=True)
 
     segs_K = torch.argmax(seg_masks_K, dim=1)
     
-    if not opt.val_with_sigmoid:
-        seg_masks_K = torch.softmax(seg_masks_K/opt.temperature, dim=1)
     ms_imgs = torch.max(seg_masks_K, dim=1)[0]
     uncertainty_maps = 1 - ms_imgs
 

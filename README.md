@@ -16,6 +16,9 @@
     2. ViT + FrozenTarget + Crop and Resize
     3. ViT + FrozenTarget + Masking
 
+* Model Testing in separate repo, or the same repo?
+    * It's tempting to have a separate repo, but maybe its best to have it in both
+
 
 ### TODO
 * Link this repo to a forked version of the DINOv2 repo 

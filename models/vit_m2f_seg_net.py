@@ -159,15 +159,14 @@ class ViT_M2F_SegNet(BaseSegNet):
         return proj_features
     
     @staticmethod
-    def semantic_inference(mask_cls, mask_pred, use_sigmoid=False):
+    def semantic_inference(mask_cls, mask_pred):
 
         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
-        if use_sigmoid:
-            mask_pred = mask_pred.sigmoid()
+        mask_pred = mask_pred.sigmoid()
         semseg = torch.einsum("bqc,bqhw->bchw", mask_cls, mask_pred)
         return semseg
 
-    def get_seg_masks(self, x, include_void=False, high_res=False, masks=None, target=False, query=False, return_mask_features=False, use_sigmoid=False):
+    def get_seg_masks(self, x, include_void=False, high_res=False, masks=None, target=False, query=False, return_mask_features=False):
         H, W = x.shape[-2:]
         # we want grads if lora rank is not None or if train_vit is True
         if (self.opt.lora_rank is not None) or (self.opt.train_vit):
@@ -188,18 +187,18 @@ class ViT_M2F_SegNet(BaseSegNet):
         if high_res:
             output["pred_masks"] = F.interpolate(output["pred_masks"], size=(H, W), mode="bilinear", align_corners=False)
 
-        seg_masks = self.semantic_inference(output["pred_logits"], output["pred_masks"], use_sigmoid=use_sigmoid)
+        seg_masks = self.semantic_inference(output["pred_logits"], output["pred_masks"])
 
         if return_mask_features:
             return seg_masks, deep_features_list[-1]
         else:
             return seg_masks
 
-    def get_target_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False, use_sigmoid=False):
-        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, target=True, return_mask_features=return_mask_features, use_sigmoid=use_sigmoid)
+    def get_target_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False):
+        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, target=True, return_mask_features=return_mask_features)
 
-    def get_query_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False, use_sigmoid=False):
-        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, query=True, return_mask_features=return_mask_features, use_sigmoid=use_sigmoid)
+    def get_query_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False):
+        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, query=True, return_mask_features=return_mask_features)
 
     def forward(self, x):
         return self.get_seg_masks(x, include_void=False, high_res=True)

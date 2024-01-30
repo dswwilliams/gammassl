@@ -146,18 +146,18 @@ class DeepLabSegNet(BaseSegNet):
         return proj_features
     
 
-    def get_seg_masks(self, x, include_void=False, high_res=False, masks=None, target=False, query=False, return_mask_features=False, use_sigmoid=False):
+    def get_seg_masks(self, x, include_void=False, high_res=False, masks=None, target=False, query=False, return_mask_features=False):
         decoder_output = self.extract_features(x, use_deep_features=True)
         masks = self.decoder.segmentation_head(decoder_output)
         if high_res:
             masks = F.interpolate(masks, size=x.shape[-2:], mode="bilinear", align_corners=False)
         return masks
 
-    def get_target_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False, use_sigmoid=False):
-        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, target=True, return_mask_features=return_mask_features, use_sigmoid=use_sigmoid)
+    def get_target_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False):
+        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, target=True, return_mask_features=return_mask_features)
 
-    def get_query_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False, use_sigmoid=False):
-        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, query=True, return_mask_features=return_mask_features, use_sigmoid=use_sigmoid)
+    def get_query_seg_masks(self, x, include_void=False, high_res=False, masks=None, return_mask_features=False):
+        return self.get_seg_masks(x, include_void=include_void, high_res=high_res, masks=masks, query=True, return_mask_features=return_mask_features)
 
     def forward(self, x):
         return self.get_seg_masks(x, include_void=False, high_res=True)
