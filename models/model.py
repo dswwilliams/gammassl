@@ -48,14 +48,25 @@ class SegmentationModel(nn.Module):
         else:
             self.patch_size = None
 
+        # if self.opt.frozen_target, then we create a copy: target_seg_net
         if self.opt.frozen_target:
             # create copy of seg_net for target that doesn't get updated
             self.target_seg_net = copy.deepcopy(self.seg_net)
             self.target_seg_net.to(self.device)
-            # load in network from -> self.opt.frozen_target_save_path
-            checkpoint = torch.load(self.opt.frozen_target_save_path, map_location=self.device)
-            self.target_seg_net.encoder.load_state_dict(checkpoint["encoder"], strict=False)
-            self.target_seg_net.decoder.load_state_dict(checkpoint["decoder"])
+            # load in network from opt.frozen_target_save_path if exists
+            # otherwise load from save_path
+            if self.opt.frozen_target_save_path:
+                print("loading frozen target from ->", self.opt.frozen_target_save_path)
+                checkpoint = torch.load(self.opt.frozen_target_save_path, map_location=self.device)
+            elif self.opt.save_path:
+                print("loading frozen target from ->", self.opt.save_path)
+                checkpoint = torch.load(self.opt.save_path, map_location=self.device)
+
+            if self.opt.frozen_target_save_path or self.opt.save_path:
+                self.target_seg_net.encoder.load_state_dict(checkpoint["encoder"], strict=False)
+                self.target_seg_net.decoder.load_state_dict(checkpoint["decoder"])
+        else:
+            self.target_seg_net = None
 
 
         ### define prototypes ###
@@ -188,6 +199,12 @@ class SegmentationModel(nn.Module):
     def model_to_eval(self):
         self.seg_net.eval()
 
+    def get_seg_masks(self, imgs, high_res=False, masks=None, return_mask_features=False, target=False):
+        if target == True and self.target_seg_net:
+            return self.target_seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+        else:
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+        
     def proto_segment_features(self, features, img_spatial_dims=None, use_dataset_prototypes=False, include_void=False):
         if use_dataset_prototypes:
             prototypes = self.dataset_prototypes
@@ -345,6 +362,7 @@ class SegmentationModel(nn.Module):
             ### calculate gamma so that p(certain) = p(consistent) ###
             reject_proportion = (1 - mean_consistency)   # reject (1 - estimated accuracy)
             # NOTE: think about what scores we are giving it
+            # so gamma_scaling determines whether gamma is calculated from the cosine similarity scores or the softmax scores
             if (self.opt.gamma_scaling is None) or (self.opt.gamma_scaling == "None"):
                 sims_per_pixel = torch.max(seg_masks_q.detach(), dim=1)[0]         # shape [bs, h, w]
                 # print(f"in update_gamma: ms_imgs_q min mean max: {sims_per_pixel.min()}, {sims_per_pixel.mean()}, {sims_per_pixel.max()}")
