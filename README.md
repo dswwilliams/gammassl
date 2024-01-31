@@ -1,4 +1,27 @@
 
+Work introduced in:
+
+“Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data”, D. Williams, D. De Martini, M. Gadd, and P. Newman, IEEE Transactions on Robotics (T-RO), 2023.
+```
+@article{gammassl,
+title={{Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data}},
+author={Williams, David and De Martini, Daniele and Gadd, Matthew and Newman, Paul},
+booktitle={IEEE Transactions on Robotics (T-RO)},
+year={2024},
+}
+```
+
+“Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling”, D. Williams, M. Gadd, P. Newman, and D. De Martini, IEEE International Conference on Robotics and Automation (ICRA), 2024
+```
+@inproceedings{maskedgammassl,
+title={{Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling}},
+author={Williams, David and Gadd, Matthew and Newman, Paul and De Martini, Daniele},
+booktitle={IEEE International Conference on Robotics and Automation (ICRA)},
+year={2024},
+}
+```
+
+
 
 ### What should this repo do?
  * Implement both a ViT and a DeepLab segmentation network
