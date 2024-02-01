@@ -6,7 +6,6 @@ from tqdm import tqdm
 import random
 import wandb
 sys.path.append("../")
-from datasets.val_datasets import ValDataset
 from utils.device_utils import get_lr
 
 class BaseTrainer():
