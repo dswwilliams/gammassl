@@ -5,8 +5,7 @@ import sys
 import csv
 import cv2
 sys.path.append("../")
-from utils.dataset_utils import get_initial_scaling_values, random_flip, normalize_img_tensor
-from utils.colour_transforms import ImgColourTransform
+from utils.dataset_utils import get_initial_scaling_values, random_flip, normalize_img_tensor, ImgColourTransform
 from utils.crop_utils import get_random_crop, get_random_crop_boxes
 # from datasets.cityscapes_mono_datasets import DOWNSAMPLE_FACTOR, RESIZE_NOISE_FACTOR
 

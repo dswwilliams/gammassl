@@ -99,13 +99,13 @@ parser.add_argument('--max_crop_ratio', type=float, default=3, help="hyperparam 
 parser.add_argument('--random_mask_prob', type=float, default=None, help="hyperparam for masking data augmentation")
 parser.add_argument("--use_resize_noise", type=str2bool, default=True, help="data augmentation: whether to add noise to resizing")
 parser.add_argument('--no_colour', type=str2bool, default=False, help="if True, no colour transforms are applied to training images")
-parser.add_argument('--val_transforms', type=str2bool, default=False, help="whether to colour-transform val images")
 
 
 # ======================== Validation Options ========================
 # TODO
 parser.add_argument('--output_rank_metrics', type=str2bool, default=False, help="normalise uncertainty metric by rank")
 # TODO
+parser.add_argument('--val_transforms', type=str2bool, default=False, help="whether to colour-transform val images")
 parser.add_argument('--val_batch_size', type=int, default=None)
 parser.add_argument('--val_every', type=int, default=500, help="frequency of validation w.r.t. number of training iterations")
 parser.add_argument('--skip_validation', type=str2bool, default=False, help="whether to skip validation during training")

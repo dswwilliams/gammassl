@@ -96,10 +96,36 @@ def calculate_reverse_precision_recall(tp, tn, fp, fn):
     reverse_precision[torch.nonzero(reverse_precision.isnan())] = 0
     return reverse_precision, reverse_recall
 
-def calculate_precision_recall(tp, tn, fp, fn):
+def state_from_metric(state_name, metrics):
+    states = {}
+    states["tp"] = "n_accurate_and_certain"
+    states["tn"] = "n_uncertain_and_inaccurate"
+    states["fp"] = "n_inaccurate_and_certain"
+    states["fn"] = "n_uncertain_and_accurate"
+
+    if state_name == "tp":
+        return metrics[states["tp"]]
+    elif state_name == "tn":
+        return metrics[states["tn"]]
+    elif state_name == "fp":
+        return metrics[states["fp"]]
+    elif state_name == "fn":
+        return metrics[states["fn"]]
+
+def _calc__precision_recall(tp, tn, fp, fn):
     precision = tp / (tp + fp)
     recall = tp / (tp + fn)
     precision[torch.nonzero(precision.isnan())] = 0
+    return precision, recall
+
+
+def get_precision_recall(metrics):
+    precision, recall = _calc__precision_recall(
+                            tp=state_from_metric("tp", metrics),
+                            tn=state_from_metric("tn", metrics),
+                            fp=state_from_metric("fp", metrics),
+                            fn=state_from_metric("fn", metrics),
+                            )
     return precision, recall
 
 def calculate_p_accurate_certain(tp, tn, fp, fn):

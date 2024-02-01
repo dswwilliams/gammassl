@@ -13,7 +13,7 @@ year={2024},
 
 “Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling”, D. Williams, M. Gadd, P. Newman, and D. De Martini, IEEE International Conference on Robotics and Automation (ICRA), 2024
 ```
-@inproceedings{maskedgammassl,
+@article{maskedgammassl,
 title={{Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling}},
 author={Williams, David and Gadd, Matthew and Newman, Paul and De Martini, Daniele},
 booktitle={IEEE International Conference on Robotics and Automation (ICRA)},
