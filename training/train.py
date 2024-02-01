@@ -96,7 +96,7 @@ parser.add_argument('--mask_input', type=str2bool, default=False, help="data aug
 parser.add_argument('--no_transforms', type=str2bool, default=False, help="turn off using colour-space transforms with True")
 parser.add_argument('--min_crop_ratio', type=float, default=2, help="hyperparam for random crop augmentation")
 parser.add_argument('--max_crop_ratio', type=float, default=3, help="hyperparam for random crop augmentation")
-parser.add_argument('--random_mask_prob', type=float, default=None, help="hyperparam for masking data augmentation")
+parser.add_argument('--random_mask_prob', type=float, default=0.5, help="hyperparam for masking data augmentation")
 parser.add_argument("--use_resize_noise", type=str2bool, default=True, help="data augmentation: whether to add noise to resizing")
 parser.add_argument('--no_colour', type=str2bool, default=False, help="if True, no colour transforms are applied to training images")
 
@@ -117,6 +117,7 @@ parser.add_argument("--num_thresholds", type=int, default=500, help="number of t
 
 
 # ======================== Logging, Loading and Saving ========================
+parser.add_argument('--use_wandb', type=str2bool, default=True, help="whether to use wandb for logging, else use visdom")
 parser.add_argument('--log_every', type=int, default=1, help="frequency of logging w.r.t. number of training iterations")
 parser.add_argument('--wandb_project', type=str, default="test", help="name of wandb project")
 parser.add_argument('--save_every', type=int,  default=1, help="frequency of saving w.r.t. number of times validated")

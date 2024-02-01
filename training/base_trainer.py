@@ -92,8 +92,8 @@ class BaseTrainer():
                                     no_colour=self.opt.no_colour,
                                     crop_size=self.crop_size,
                                     )
-
-        self.validator.train_seg_idxs = np.random.choice(len(self.dataset), self.opt.n_train_segs, replace=False)
+        # TODO: think about validating with training data
+        # self.validator.train_seg_idxs = np.random.choice(len(self.dataset), self.opt.n_train_segs, replace=False)
 
         # define collation function to implement masking if requested
         from utils.collation_utils import get_collate_fn
@@ -120,34 +120,9 @@ class BaseTrainer():
 
     ##########################################################################################################################################################
     def _init_validation(self):
-        from validator import Validator
-        self.validator = Validator(opt=self.opt, device=self.device, class_labels=self.known_class_list)
+        from ue_testing.tester import Tester
+        self.validator = Tester(self.opt, self.model)
 
-        self.val_datasets = []
-        cityscapes_val_dataset = ValDataset(
-                                        name="CityscapesVal",
-                                        dataroot=self.opt.cityscapes_dataroot, 
-                                        use_imagenet_norm=self.opt.use_imagenet_norm, 
-                                        val_transforms=self.opt.val_transforms,
-                                        patch_size=self.model.patch_size,
-                                        )
-        self.val_datasets.append(cityscapes_val_dataset)
-        self.validator.val_seg_idxs[cityscapes_val_dataset.name] = np.random.choice(len(cityscapes_val_dataset), self.opt.n_val_segs, replace=False)
-
-        bdd_val_dataset = ValDataset(
-                            name="BDDVal",
-                            dataroot=self.opt.bdd_val_dataroot, 
-                            use_imagenet_norm=self.opt.use_imagenet_norm, 
-                            val_transforms=self.opt.val_transforms,
-                            patch_size=self.model.patch_size,
-                            )
-        self.val_datasets.append(bdd_val_dataset)
-        self.validator.val_seg_idxs[bdd_val_dataset.name] = np.random.choice(len(bdd_val_dataset), self.opt.n_val_segs, replace=False)
-
-
-        for dataset in self.val_datasets:
-            n_val_examples = len(dataset)
-            print(dataset.name+" - Num. val examples", n_val_examples)
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -168,18 +143,13 @@ class BaseTrainer():
                             self.model.calculate_dataset_prototypes()
 
                         # log qualitative results
-                        self.validator.view_train_segmentations(train_dataset=self.dataset, model=self.model)
-                        for dataset in self.val_datasets:
-                            self.validator.view_val_segmentations(val_dataset=dataset, model=self.model)
+                        # self.validator.view_train_segmentations(train_dataset=self.dataset, model=self.model)
+                        # for dataset in self.val_datasets:
+                        #     self.validator.view_val_segmentations(val_dataset=dataset, model=self.model)
                         wandb.log({"test": 1}, commit=True)
 
                         # log quantitative results
-                        for dataset in self.val_datasets:
-                            self.validator.validate_uncertainty_estimation(
-                                                                val_dataset=dataset, 
-                                                                model=self.model, 
-                                                                full_validation_count=self.full_validation_count,
-                                                                )
+                        self.validator.test(self.full_validation_count)
                         if (self.full_validation_count % self.opt.save_every == 0):
                             self.save_model()
                         self.full_validation_count += 1

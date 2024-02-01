@@ -106,7 +106,7 @@ class Trainer(BaseTrainer):
             losses, metrics = self.losses.calculate_m2f_losses(m2f_outputs, labels, labelled_crop_boxes_A)
         elif self.opt.model_arch == "deeplab":
             labelled_imgs_A = crop_by_box_and_resize(labelled_imgs, labelled_crop_boxes_A)  
-            labelled_seg_masks_A = self.model.get_seg_masks(labelled_imgs_A, high_res=True, target=False)
+            labelled_seg_masks_A = self.model.get_seg_masks(labelled_imgs_A, high_res=True)
             sup_loss, metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels, labelled_crop_boxes_A)
             losses = {"loss_s": sup_loss}
 
@@ -124,7 +124,7 @@ class Trainer(BaseTrainer):
         ### target branch ###
         with torch.no_grad():
             raw_imgs_t_tA = crop_by_box_and_resize(raw_imgs_t, raw_crop_boxes_A)
-            seg_masks_t_tA = self.model.get_seg_masks(raw_imgs_t_tA, high_res=True, target=True)
+            seg_masks_t_tA = self.model.get_seg_masks(raw_imgs_t_tA, high_res=True, branch="target")
             seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, raw_crop_boxes_B)
 
         ### query branch ###
@@ -136,7 +136,7 @@ class Trainer(BaseTrainer):
                                                     img_spatial_dims=raw_imgs_q.shape[-2:], 
                                                     )
         else:
-            seg_masks_q_tB = self.model.get_seg_masks(raw_imgs_q_tB, high_res=True, target=False)
+            seg_masks_q_tB = self.model.get_seg_masks(raw_imgs_q_tB, high_res=True, branch="query")
         seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
 
         ### uniformity loss ###

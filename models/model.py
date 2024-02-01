@@ -199,11 +199,47 @@ class SegmentationModel(nn.Module):
     def model_to_eval(self):
         self.seg_net.eval()
 
-    def get_seg_masks(self, imgs, high_res=False, masks=None, return_mask_features=False, target=False):
-        if target == True and self.target_seg_net:
+    def get_seg_masks(self, imgs, high_res=False, masks=None, return_mask_features=False, branch=None):
+        """
+        Options:
+        - branch = "query" and use_proto_seg = True
+        - branch = "query" and use_proto_seg = False
+        - branch = "target" and frozen_target = True
+        - branch = "target" and frozen_target = False
+        """
+
+        if branch == "target" and self.target_seg_net:
             return self.target_seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+        elif branch == "target" and not self.target_seg_net:
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+        elif branch == "query" and self.opt.use_proto_seg:
+            return self.proto_segment_imgs(imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=masks)
+        elif branch == "query" and not self.opt.use_proto_seg:
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
         else:
             return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+
+
+    def get_val_seg_masks(self, imgs):
+        """
+        - want to validate both query and target branches
+        """
+        if self.opt.use_proto_seg:
+            seg_masks_K_q = self.proto_segment_imgs(imgs, use_dataset_prototypes=True)
+        else:
+            seg_masks_K_q = self.get_seg_masks(imgs, high_res=True, branch="query")
+        segs_K_q = torch.argmax(seg_masks_K_q, dim=1)
+        ms_imgs_q = torch.max(seg_masks_K_q, dim=1)[0]
+        uncertainty_maps_q = 1 - ms_imgs_q
+        query = {"segs": segs_K_q, "uncertainty_maps": uncertainty_maps_q}
+
+        seg_masks_K_t = self.get_seg_masks(imgs, high_res=True, branch="target")    
+        segs_K_t = torch.argmax(seg_masks_K_t, dim=1)
+        ms_imgs_t = torch.max(seg_masks_K_t, dim=1)[0]
+        uncertainty_maps_t = 1 - ms_imgs_t
+        target = {"segs": segs_K_t, "uncertainty_maps": uncertainty_maps_t}
+
+        return {"query":query, "target":target}
         
     def proto_segment_features(self, features, img_spatial_dims=None, use_dataset_prototypes=False, include_void=False):
         if use_dataset_prototypes:
