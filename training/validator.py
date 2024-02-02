@@ -604,7 +604,7 @@ class Validator():
 
     ######################################################################################################################################################
     @torch.no_grad()
-    def validate_uncertainty_estimation(self, val_dataset, model, full_validation_count):
+    def validate_uncertainty_estimation(self, val_dataset, model, val_step):
         print("\nValidating uncertainty estimation on", val_dataset.name)
         device = next(model.parameters()).device
 
@@ -676,6 +676,6 @@ class Validator():
         processed_metrics_target = calculate_metrics_suite(val_metrics_totals_target, val_metrics_counts_target)
         
         ### plotting metrics to wandb ###
-        plot_val_ue_metrics(processed_metrics_query, full_validation_count, dataset_name=val_dataset.name+" (Query)", plot_plots=False)
-        plot_val_ue_metrics(processed_metrics_target, full_validation_count, dataset_name=val_dataset.name+" (Target)", plot_plots=False)
+        plot_val_ue_metrics(processed_metrics_query, val_step, dataset_name=val_dataset.name+" (Query)", plot_plots=False)
+        plot_val_ue_metrics(processed_metrics_target, val_step, dataset_name=val_dataset.name+" (Target)", plot_plots=False)
     ######################################################################################################################################################

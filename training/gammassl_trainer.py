@@ -23,23 +23,16 @@ class Trainer(BaseTrainer):
 
         # for all opts in self.opt, if it starts with "w_" then add it to self.loss_weights
         self.loss_weights = {key: val for key, val in vars(self.opt).items() if key.startswith("w_")}
-
-        self.model.gamma = torch.zeros(1, dtype=torch.float32).to(self.device)
     ##########################################################################################################################################################
-
     
     ##########################################################################################################################################################
     def _train_models(self, labelled_dict, raw_dict):
         """
-        steps:
-        - model to train
-        - if required
-            - calculate prototypes
-        - perform labelled task
-        - if required
-            - calculate prototype loss
-        - perform unlabelled task
-        - backprop, update model and log losses and metrics
+
+        - what are the options here?
+            - either its supervised only
+            - or its gssl training
+            - or its mgssl training
 
         TODO: 
         - if sup_loss_only == True, then only perform and backprop labelled task

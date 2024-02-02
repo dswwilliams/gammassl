@@ -31,7 +31,7 @@ TODO: this could possible be improved by consolidating some of the arguments
 
 
 # ======================== Training ========================
-parser.add_argument('--total_iters', type=int, default=160000, help="total number of training iterations")
+parser.add_argument('--num_train_steps', type=int, default=160000, help="total number of training iterations")
 parser.add_argument('--batch_size', type=int, default=24, help="batch size for training (and validation if val_batch_size is None)")
 parser.add_argument('--use_proto_seg', type=str2bool, default=False, help="whether to use prototype segmentation")
 parser.add_argument('--frozen_target', type=str2bool, default=False,)

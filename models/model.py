@@ -6,8 +6,6 @@ from utils.crop_utils import crop_by_box_and_resize
 from utils.downsampling_utils import ClassWeightedModalDownSampler
 from tqdm import tqdm
 import numpy as np
-import pickle
-from ema_pytorch import EMA
 import copy
 import sys
 sys.path.append("../")
@@ -35,7 +33,7 @@ class SegmentationModel(nn.Module):
             from models.deeplab_seg_net import DeepLabSegNet as SegNet
             self.crop_size = 256
 
-
+        self.gamma = torch.zeros(1, dtype=torch.float32).to(self.device)
 
         self.seg_net = SegNet(device, opt, num_known_classes=self.num_known_classes)
         if self.opt.lora_rank is not None:
@@ -183,12 +181,12 @@ class SegmentationModel(nn.Module):
             pass
         elif self.opt.lr_policy == "poly":
             for network in self.optimizers:
-                self.schedulers[network] = torch.optim.lr_scheduler.PolynomialLR(self.optimizers[network], power=1.0, total_iters=self.opt.total_iters)
+                self.schedulers[network] = torch.optim.lr_scheduler.PolynomialLR(self.optimizers[network], power=1.0, total_iters=self.opt.num_train_steps)
 
         elif self.opt.lr_policy == "warmup_poly":
             if (self.opt.warmup_ratio is not None) and (self.opt.n_warmup_iters) is not None:
                 warmup_scheduler = torch.optim.lr_scheduler.LinearLR(self.optimizers[network], start_factor=self.opt.warmup_ratio, end_factor=1, total_iters=self.opt.n_warmup_iters)
-                decay_scheduler = torch.optim.lr_scheduler.PolynomialLR(self.optimizers[network], power=1.0, total_iters=self.opt.total_iters)
+                decay_scheduler = torch.optim.lr_scheduler.PolynomialLR(self.optimizers[network], power=1.0, total_iters=self.opt.num_train_steps)
                 self.schedulers[network] = torch.optim.lr_scheduler.SequentialLR(self.optimizers[network], [warmup_scheduler, decay_scheduler], milestones=[self.opt.n_warmup_iters])
             else:
                 raise ValueError("Warmup policy selected but warmup parameters not specified")
