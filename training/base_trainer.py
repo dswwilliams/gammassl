@@ -142,13 +142,12 @@ class BaseTrainer():
                             self.model.calculate_dataset_prototypes()
 
                         # log qualitative results
-                        # self.validator.view_train_segmentations(train_dataset=self.dataset, model=self.model)
-                        # for dataset in self.val_datasets:
-                        #     self.validator.view_val_segmentations(val_dataset=dataset, model=self.model)
-                        wandb.log({"test": 1}, commit=True)
+                        self.validator.get_qual_results()
 
                         # log quantitative results
                         self.validator.test(self.full_validation_count)
+
+                        # save model
                         if (self.full_validation_count % self.opt.save_every == 0):
                             self.save_model()
                         self.full_validation_count += 1

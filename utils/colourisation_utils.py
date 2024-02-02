@@ -4,30 +4,49 @@ import numpy as np
 import kornia
 import matplotlib.pyplot as plt
 
+# def denormalise(batch, imagenet=False):
+#     if imagenet:
+#         # needs to this shape -> (height, width, channels)
+#         denorm_batch = torch.zeros_like(batch)
+#         batch = batch.detach().cpu().numpy()
+#         denorm_batch = denorm_batch.detach().cpu().numpy()
+
+#         batch = np.transpose(batch, (0, 2, 3, 1)) # (batch_idx, height, width, channels)
+#         for i in range(0,batch.shape[0]):
+#             img = batch[i,:,:,:]
+#             img = img*np.array([0.229, 0.224, 0.225])
+#             img = img + np.array([0.485, 0.456, 0.406])
+#             img = img*255.0
+#             img = np.transpose(img, (2, 0, 1)) # (channels, height, width)
+#             denorm_batch[i,:,:,:] = img
+
+#         # batch = np.transpose(batch, (0, 3, 1, 2)) # (batch_idx, height, width, channels)
+#         denorm_batch = torch.from_numpy(denorm_batch)
+#         denorm_batch = torch.clamp(denorm_batch, min=0, max=255)
+#         return denorm_batch # denorm_batch tensor has range 0 -> 255
+#     else:
+#         # [-1, 1] -> [-0.5, 0.5] -> [0, 1] -> [0,255]
+#         denorm_batch = 255*(0.5*batch + 0.5)
+#         return denorm_batch
+    
 def denormalise(batch, imagenet=False):
     if imagenet:
-        # needs to this shape -> (height, width, channels)
-        denorm_batch = torch.zeros_like(batch)
-        batch = batch.detach().cpu().numpy()
-        denorm_batch = denorm_batch.detach().cpu().numpy()
+        # Define the normalization parameters
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(batch.device)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(batch.device)
 
-        batch = np.transpose(batch, (0, 2, 3, 1)) # (batch_idx, height, width, channels)
-        for i in range(0,batch.shape[0]):
-            img = batch[i,:,:,:]
-            img = img*np.array([0.229, 0.224, 0.225])
-            img = img + np.array([0.485, 0.456, 0.406])
-            img = img*255.0
-            img = np.transpose(img, (2, 0, 1)) # (channels, height, width)
-            denorm_batch[i,:,:,:] = img
+        # Denormalize the batch
+        denorm_batch = batch * std + mean
+        denorm_batch = torch.clamp(denorm_batch * 255, min=0, max=255)
 
-        # batch = np.transpose(batch, (0, 3, 1, 2)) # (batch_idx, height, width, channels)
-        denorm_batch = torch.from_numpy(denorm_batch)
-        denorm_batch = torch.clamp(denorm_batch, min=0, max=255)
-        return denorm_batch # denorm_batch tensor has range 0 -> 255
     else:
         # [-1, 1] -> [-0.5, 0.5] -> [0, 1] -> [0,255]
-        denorm_batch = 255*(0.5*batch + 0.5)
-        return denorm_batch
+        denorm_batch = 255 * (0.5 * batch + 0.5)
+
+    return denorm_batch
+
+    
+
 
 def colorize_segmentations(trainid_img):
     label_to_color = {
