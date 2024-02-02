@@ -8,7 +8,7 @@ echo "Script directory: $script_dir"
 # cd into the script's directory
 cd "$script_dir"
 
-train_py_path="$../training/train.py"
+train_py_path="../training/train.py"
 
 python3 "$train_py_path" \
                 --model_arch vit_m2f \
