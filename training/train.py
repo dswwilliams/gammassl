@@ -135,14 +135,18 @@ if socket.gethostname() == "smaug":
     opt.dino_path = "/home/dsww/networks/dinov2/dinov2.pth"
     opt.bdd_val_dataroot = "/home/dsww/data/bdd_10k"
 elif opt.use_cpu:
-    opt.batch_size = 2
-    opt.num_workers = 0
-    opt.cityscapes_dataroot = "/Users/dw/data/"
-    opt.unlabelled_dataroot = "/Users/dw/data/bdd100k"
-    opt.wilddash_dataroot = "/Users/dw/data/wilddash"
-    opt.sax_raw_dataroot = "/Users/dw/data/sax_raw"
-    opt.sax_labelled_dataroot = "/Users/dw/data/sax_labelled"
-    opt.sensor_models_path = "/Users/dw/code/lut/sensor-models"
+    if "eng" in socket.gethostname():
+      opt.batch_size = 2
+      opt.num_workers = 0
+      opt.cityscapes_dataroot = "/Users/dw/data/"
+      opt.unlabelled_dataroot = "/Users/dw/data/bdd100k"
+      opt.wilddash_dataroot = "/Users/dw/data/wilddash"
+      opt.sax_raw_dataroot = "/Users/dw/data/sax_raw"
+      opt.sax_labelled_dataroot = "/Users/dw/data/sax_labelled"
+      opt.sensor_models_path = "/Users/dw/code/lut/sensor-models"
+    else:
+       opt.dino_path = "/Users/dw/networks/dinov2.pth"
+       
 # print(opt)
 ########################################################################
 

@@ -90,8 +90,10 @@ class SegmentationModel(nn.Module):
         self.extract_prototypes = Extract_HyperSpherePrototypes(num_known_classes=self.num_known_classes)
         self.segment_via_prototypes = Segment_via_HyperSpherePrototypes()
 
-        from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
-        _proto_dataset = CityscapesxBDDDataset
+        # from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
+        # _proto_dataset = CityscapesxBDDDataset
+        from datasets.fakedata_dataset import FakeData_Dataset
+        _proto_dataset = FakeData_Dataset
 
         # for training
         train_proto_dataset = _proto_dataset(

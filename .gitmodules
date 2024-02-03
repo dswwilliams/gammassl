@@ -3,4 +3,4 @@
 	url = git@github.com:dswwilliams/dinov2.git
 [submodule "ue_testing"]
 	path = ue_testing
-	url = https://github.com/dswwilliams/ue_testing.git
+	url = git@github.com:dswwilliams/ue_testing.git

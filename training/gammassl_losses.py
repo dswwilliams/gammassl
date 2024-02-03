@@ -459,12 +459,12 @@ class GammaSSLLosses:
             targets.append(target)
         
         losses = self.m2f_criterion(outputs, targets)
+        
 
-        for key in losses:
-            if key in ["loss_mask", "loss_dice"]:
-                losses[key] = losses[key] * 5
-            elif key == "loss_ce":
-                losses[key] = losses[key] * 2
+        loss_ce = losses["loss_ce"] * 2 if "loss_ce" in losses else None
+        loss_dice = losses["loss_dice"] * 5 if "loss_dice" in losses else None
+        loss_mask = losses["loss_mask"] * 5 if "loss_mask" in losses else None
+        del losses
 
         with torch.no_grad():
             seg_masks = self.semantic_inference(mask_cls=outputs["pred_logits"], mask_pred=outputs["pred_masks"])
@@ -487,7 +487,7 @@ class GammaSSLLosses:
             metrics["sup_mean_max_softmax"] = torch.softmax(seg_masks, dim=1).max(1)[0].mean().cpu()
             # metrics["sup_mean_max_softmax_temp"] = torch.softmax(seg_masks/self.opt.temperature, dim=1).max(1)[0].mean().cpu()
 
-        return losses, metrics
+        return loss_ce, loss_dice, loss_mask, metrics
     ######################################################################################################################################################
 
     ######################################################################################################################################################

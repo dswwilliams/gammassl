@@ -56,8 +56,11 @@ class BaseTrainer():
         
         ### setup training dataset ###
         # labelled cityscapes data and unlabelled data from another domain
-        from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
-        _train_dataset = CityscapesxBDDDataset
+        # from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
+        # _train_dataset = CityscapesxBDDDataset
+
+        from datasets.fakedata_dataset import FakeData_Dataset
+        _train_dataset = FakeData_Dataset
 
         if self.opt.sup_loss_only:        # e.g. if labelled cityscapes only
             _only_labelled = True
@@ -96,8 +99,9 @@ class BaseTrainer():
 
 
     def init_validation(self):
-        from ue_testing.tester import Tester
-        return Tester(self.opt, self.model)
+        if not self.opt.skip_validation:
+            from ue_testing.tester import Tester
+            return Tester(self.opt, self.model)
 
     def validate_if_needed(self):
         if (self.train_step % self.opt.val_every == 0):
@@ -115,6 +119,7 @@ class BaseTrainer():
                 # save model
                 if (self.val_step % self.opt.save_every == 0):
                     self.save_model()
+            self.model.model_to_eval()
 
     def train_model(self, labelled_dict, raw_dict):
         self.train_step += 1
@@ -145,8 +150,6 @@ class BaseTrainer():
         self.train_step = 0
         self.val_step = 0
         self.epoch = 0
-
-        breakpoint()
 
         while self.train_step < self.opt.num_train_steps:
             for (labelled_dict, raw_dict) in tqdm(self.dataloader):
