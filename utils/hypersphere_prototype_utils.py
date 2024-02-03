@@ -3,107 +3,96 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
-sys.path.append("../")
-
-class Extract_HyperSpherePrototypes(nn.Module):
-    def __init__(self, num_known_classes):
-        super(Extract_HyperSpherePrototypes, self).__init__()
-        self.num_known_classes = num_known_classes  
-    
-    def forward(self, features, labels, output_metrics=False):
-        """
-        inputs:
-        features.shape = [bs, feature_length, h, w]
-        labels.shape = [bs, h, w]
         
-        outputs:
-        prototypes.shape = [feature_length, num_classes]
-        """
 
-        bs, feature_length, h, w = features.shape
+def extract_prototypes(features, labels, num_known_classes=19, output_metrics=False):
+    """
+    Extract prototypes from input features based on labels.
 
-        ### prepare features ###
-        features = F.normalize(features, p=2, dim=1)
-        features = features.permute(0,2,3,1).reshape(bs*h*w, feature_length)        # shape: [bs*h*w, feature_length]
+    Args:
+        features (torch.Tensor): Input feature maps with shape [bs, feature_length, h, w].
+        labels (torch.Tensor): Ground-truth labels with shape [bs, h, w], i.e same spatial size as features.
+        num_known_classes (int, optional): Number of known classes (excluding void class). Default is 19.
+        output_metrics (bool, optional): Whether to output additional metrics. Default is False.
 
-        ### prepare labels ###
-        labels = labels.reshape(bs*h*w)                # shape: [bs*h*w]
-        one_hot_labels = F.one_hot(labels, num_classes=self.num_known_classes+1).float()          # shape: [bs*h*w, num_known_classes+1]
+    Returns:
+        torch.Tensor: Prototypes for known classes with shape [feature_length, num_known_classes].
 
-        ### calculate prototypes ### 
-        prototypes = torch.matmul(features.T, one_hot_labels)         # shape: [feature_length, num_known_classes+1]
-        prototypes = prototypes[:,:-1]                            # shape: [feature_length, num_known_classes]
-        prototypes = F.normalize(prototypes, dim=0, p=2)          # shape: [feature_length, num_known_classes]
+    If 'output_metrics' is True, the function also returns mean similarity values
+        between features and prototypes for each known class.
+    """
+    bs, feature_length, h, w = features.shape
 
-        if output_metrics:
-            with torch.no_grad():
-                # calculate mean sim for each prototype cluster
-                sim_w_prototypes = torch.matmul(features.detach(), prototypes.detach())                         # shape: [bs*h*w, num_known_classes]
-                one_hot_labels = one_hot_labels[:,:-1]                                         # shape: [bs*h*w, num_known_classes]
-                class_count = one_hot_labels.sum(0)
-                class_count[class_count == 0] = 1
-                mean_sim_w_GTprototypes = (one_hot_labels * sim_w_prototypes).sum(0) / class_count  # shape: [num_known_classes]
-                return prototypes, mean_sim_w_GTprototypes
+    # prepare features
+    features = F.normalize(features, p=2, dim=1)
+    features = features.permute(0,2,3,1).reshape(bs*h*w, feature_length)        # shape: [bs*h*w, feature_length]
+
+    # prepare labels
+    labels = labels.reshape(bs*h*w)                # shape: [bs*h*w]
+    one_hot_labels = F.one_hot(labels, num_classes=num_known_classes+1).float()          # shape: [bs*h*w, num_known_classes+1]
+
+    # calculate prototypes, ignoring void class
+    prototypes = torch.matmul(features.T, one_hot_labels)         # shape: [feature_length, num_known_classes+1]
+    prototypes = prototypes[:,:-1]                            # shape: [feature_length, num_known_classes]
+    prototypes = F.normalize(prototypes, dim=0, p=2)          # shape: [feature_length, num_known_classes]
+
+    if output_metrics:
+        return prototypes, calculate_mean_prototype_sim(features, prototypes, one_hot_labels)
+    else:
+        return prototypes
+
+
+@torch.no_grad()
+def calculate_mean_prototype_sim(features, prototypes, one_hot_labels):
+    # flatten inputs
+    if one_hot_labels.shape > 2:
+        one_hot_labels = one_hot_labels.reshape(-1, one_hot_labels.shape[-1])          # shape: [bs*h*w, num_known_classes]
+    if features.shape > 2:
+        features = features.reshape(-1, features.shape[-1])          # shape: [bs*h*w, feature_length]
+
+    # ignoring void class
+    num_known_classes = prototypes.shape[-1]
+    if one_hot_labels.shape[-1] > num_known_classes:
+        one_hot_labels = one_hot_labels[:,:num_known_classes]            # shape: [bs*h*w, num_known_classes]
+
+    # calculate mean sim for each prototype cluster
+    sim_w_prototypes = torch.matmul(features.detach(), prototypes.detach())                         # shape: [bs*h*w, num_known_classes]
+    class_count = one_hot_labels.sum(0)
+    class_count[class_count == 0] = 1
+    mean_sim_w_GTprototypes = (one_hot_labels * sim_w_prototypes).sum(0) / class_count  # shape: [num_known_classes]
+    return mean_sim_w_GTprototypes
+
+
+def segment_via_prototypes(features, prototypes, gamma=None, output_metrics=False):
+    bs, feature_length, h, w = features.shape           # shape: [bs, feature_length, h, w]
+
+    # normalise features to compute cosine similarity
+    features = F.normalize(features, p=2, dim=1)
+
+    prototypes = F.normalize(prototypes, p=2, dim=0)
+    num_known_classes = prototypes.shape[1]
+
+    features = features.permute(0,2,3,1).reshape(-1, feature_length)        # shape: [bs*h*w, feature_length]
+
+    seg_masks = torch.matmul(features, prototypes)        # shape: [bs*h*w, num_known_classes]
+
+    if output_metrics:
+        # calculate the mean similarity between features and their nearest prototype
+        mean_sim_to_NNprototype = calculate_mean_prototype_sim(features, prototypes, one_hot_labels=F.one_hot(seg_masks.argmax(1), num_known_classes))
+
+    if gamma is not None:
+        if gamma.requires_grad:
+            gammas = gamma * torch.ones(bs*h*w, 1, requires_grad=True).to(features.device)      # shape: [bs*h*w, 1]
         else:
-            return prototypes
+            gammas = gamma * torch.ones(bs*h*w, 1, requires_grad=False).to(features.device)      # shape: [bs*h*w, 1]
+        seg_masks = torch.cat((seg_masks, gammas), dim=1)             # shape: [bs*h*w, num_known_classes+1]
 
-class Segment_via_HyperSpherePrototypes(nn.Module):
-    def __init__(self):
-        super(Segment_via_HyperSpherePrototypes, self).__init__()
+    seg_masks = seg_masks.reshape(bs, h, w, -1).permute(0,3,1,2)     # shape: [bs, num_known_classes, h, w]
 
-    def forward(self, features, global_prototypes, gamma=None, visualiser=None, output_metrics=False):
-        bs, feature_length, h, w = features.shape           # shape: [bs, feature_length, h, w]
-
-        # normalise features to compute cosine similarity
-        features = F.normalize(features, p=2, dim=1)
-
-        global_prototypes = F.normalize(global_prototypes, p=2, dim=0)
-        num_known_classes = global_prototypes.shape[1]
-
-        features = features.permute(0,2,3,1).reshape(-1, feature_length)        # shape: [bs*h*w, feature_length]
-
-        seg_masks = torch.matmul(features, global_prototypes)        # shape: [bs*h*w, num_known_classes]
-
-        if output_metrics:
-            with torch.no_grad():
-                ### calculating mean and std of similarity between features their NN prototype ###
-                sim_to_NNprototype, segs = torch.max(seg_masks.detach(), dim=1)        # shapes: [bs*h*w], [bs*h*w]
-                segs = F.one_hot(segs, num_classes=num_known_classes)                    # shape: [bs*h*w, num_known_classes]
-                # checking how many pixels are segmented as each of the classes
-                class_count = segs.sum(0)           # shape: [num_known_classes]
-                # if no pixels are segmented as a given class, then give class count as 1 to avoid NaN (the mean sim = 0 -> 0/1 = 0 instead of NaN)
-                class_count[class_count == 0] = 1
-                class_masked_sim_to_NNprototype = (segs * seg_masks)
-
-                mean_sim_per_class_to_NNprototype = class_masked_sim_to_NNprototype.sum(0) / class_count
-                # variance_per_class_to_NNprototype = (segs * (class_masked_sim_to_NNprototype - mean_sim_per_class_to_NNprototype)**2).sum(0) / (class_count)
-
-        if visualiser is not None:
-            with torch.no_grad():
-                vis = visualiser["vis"]
-                vis.histogram(sim_to_NNprototype, 
-                win=visualiser["name"], 
-                env="mean-sim-to-NN-prototypes",
-                opts=dict(
-                        xlabel='CosineSim',
-                        numbins=100,
-                        title=visualiser["name"]
-                    ))
-
-        if gamma is not None:
-            if gamma.requires_grad:
-                gammas = gamma * torch.ones(bs*h*w, 1, requires_grad=True).to(features.device)      # shape: [bs*h*w, 1]
-            else:
-                gammas = gamma * torch.ones(bs*h*w, 1, requires_grad=False).to(features.device)      # shape: [bs*h*w, 1]
-            seg_masks = torch.cat((seg_masks, gammas), dim=1)             # shape: [bs*h*w, num_known_classes+1]
-
-
-        seg_masks = seg_masks.reshape(bs, h, w, -1).permute(0,3,1,2)     # shape: [bs, num_known_classes, h, w]
-
-        if output_metrics:
-            return seg_masks, mean_sim_per_class_to_NNprototype
-        else:
-            return seg_masks
+    if output_metrics:
+        return seg_masks, mean_sim_to_NNprototype
+    else:
+        return seg_masks
 
 
 def calc_inter_prototype_sims(prototypes):
@@ -134,16 +123,6 @@ def calculate_cosine_sim_threhold(seg_masks, proportion_to_reject):
     return cosine_sim_threshold
 
 
-"""
-- Using the SAX data, we can compute feature space statistics to evaluate how the training is progressing.
-- This could be very useful in the development of the techniques
-"""
-
-# def calculate_feature_stats(seg_masks, labels):
-#     """
-#     - calculate average similarity with prototype and the variability in this similarity
-#     """
-#     return mean_sim_to_GTprototype, var_sim_to_GTprototype
 
 def calc_mean_sim_w_GTprototypes(features, prototypes, labels, num_known_classes):
     with torch.no_grad():

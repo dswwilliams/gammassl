@@ -6,7 +6,7 @@ from tqdm import tqdm
 import random
 import wandb
 sys.path.append("../")
-from utils.device_utils import get_lr
+from utils.device_utils import get_lr, init_device
 from utils.disk_utils import load_checkpoint_if_exists, get_encoder_state_dict
 
 class BaseTrainer():
@@ -39,15 +39,12 @@ class BaseTrainer():
             wandb.init(project=self.opt.wandb_project, config=self.opt)
 
     def init_device(self):
-        # if available (and not overwridden by opt.use_cpu) use GPU, else use CPU
-        device_id = "cuda:" + self.opt.gpu_no if torch.cuda.is_available() and not self.opt.use_cpu else "cpu"        
-        print("Device: ", device_id)
-        return torch.device(device_id)
+        return init_device(gpu_no=self.opt.gpu_no, use_cpu=self.opt.use_cpu)
     
 
     def init_model(self):
         from models.model import SegmentationModel
-        model = SegmentationModel(device=self.device, opt=self.opt, known_class_list=self.known_class_list)
+        model = SegmentationModel(opt=self.opt, known_class_list=self.known_class_list)
         load_checkpoint_if_exists(model, self.opt.save_path)
         return model
 

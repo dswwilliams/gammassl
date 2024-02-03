@@ -26,19 +26,29 @@ class Trainer(BaseTrainer):
     
     
     def train_model(self, labelled_dict, raw_dict):
-        losses = {}
-        metrics = {}
+            """
+            Trains the model by performing a labelled task and an unlabelled task.
+            The unlabelled task implements GammaSSL training.
 
+            Args:
+                labelled_dict (dict): A dictionary containing the labelled data.
+                raw_dict (dict): A dictionary containing the raw data.
 
-        self.calculate_prototype_loss_if_needed(losses)
+            Returns:
+                tuple: A tuple containing the losses and metrics.
+            """
+            losses = {}
+            metrics = {}
 
-        self.perform_labelled_task(labelled_dict, losses, metrics)
+            self.calculate_prototype_loss_if_needed(losses)
 
-        if not self.opt.sup_loss_only:
-            self.perform_unlabelled_task(raw_dict, losses, metrics)
+            self.perform_labelled_task(labelled_dict, losses, metrics)
 
-        self.update_model(losses)
-        return losses, metrics 
+            if not self.opt.sup_loss_only:
+                self.perform_unlabelled_task(raw_dict, losses, metrics)
+
+            self.update_model(losses)
+            return losses, metrics
     
     def calculate_prototype_loss_if_needed(self, losses):
         if self.opt.use_proto_seg:
@@ -46,11 +56,11 @@ class Trainer(BaseTrainer):
             losses["loss_p"] = self.losses.calculate_prototype_loss(prototypes)
 
     def update_model(self, losses):
-        ### zero grad ###
+        # reset model grads
         for network_ids in self.model.optimizers:
             self.model.optimizers[network_ids].zero_grad()
 
-        ### backprop loss ###
+        # calculate grads w.r.t. model params
         model_loss = 0
         for key, loss in losses.items():
             weight = self.loss_weights.get(key.replace("loss_", "w_"), 1)
@@ -58,7 +68,7 @@ class Trainer(BaseTrainer):
         (model_loss).backward()
         model_loss = model_loss.item()
 
-        ### update weights ###
+        # update model params
         for network_ids in self.model.optimizers:
             self.model.optimizers[network_ids].step()
         for network_ids in self.model.schedulers:
@@ -66,7 +76,7 @@ class Trainer(BaseTrainer):
 
     
     def perform_labelled_task(self, labelled_dict, losses, metrics):
-        ### (task) labelled task ###
+        """"""
         labelled_imgs = to_device(labelled_dict["img"], self.device)
         labels = to_device(labelled_dict["label"], self.device)
         labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
@@ -92,6 +102,7 @@ class Trainer(BaseTrainer):
 
     
     def perform_unlabelled_task(self, raw_dict, losses, metrics):
+        # data to device
         raw_imgs_t = to_device(raw_dict["img_1"], self.device)
         raw_imgs_q = to_device(raw_dict["img_2"], self.device)
         raw_crop_boxes_A = to_device(raw_dict["box_A"], self.device)
@@ -115,20 +126,18 @@ class Trainer(BaseTrainer):
             seg_masks_q_tB = self.model.get_seg_masks(raw_imgs_q_tB, high_res=True, branch="query")
         seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
 
-        ### uniformity loss ###
+        # calculate uniformity loss
         if self.opt.use_proto_seg:
             losses["loss_u"] = self.losses.calculate_uniformity_loss(
                                                         raw_features_q_tB,
                                                         self.model.seg_net.projection_net
                                                         )
 
-        ### calculating gamma ###
-        if not self.opt.no_filtering:
-            self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
-
-        ### get gamma masks ###
+        # get binary uncertainty masks with updated gamma
+        self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
         gamma_masks_q = get_gamma_masks(seg_masks_q_tBA, gamma=self.model.gamma)
 
-        ### consistency loss ###
+        # calculate consistency loss
         losses["loss_c"], ssl_metrics = self.losses.calculate_ssl_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
         metrics.update(ssl_metrics)
+        
