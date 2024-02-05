@@ -76,7 +76,6 @@ class Trainer(BaseTrainer):
 
     
     def perform_labelled_task(self, labelled_dict, losses, metrics):
-        """"""
         labelled_imgs = to_device(labelled_dict["img"], self.device)
         labels = to_device(labelled_dict["label"], self.device)
         labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
@@ -94,7 +93,6 @@ class Trainer(BaseTrainer):
             metrics.update(m2f_metrics)
 
         elif self.opt.model_arch == "deeplab":
-            labelled_imgs_A = crop_by_box_and_resize(labelled_imgs, labelled_crop_boxes_A)  
             labelled_seg_masks_A = self.model.get_seg_masks(labelled_imgs_A, high_res=True)
             sup_loss, sup_metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels, labelled_crop_boxes_A)
             losses["loss_s"] = sup_loss

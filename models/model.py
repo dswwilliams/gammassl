@@ -1,16 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.device_utils import to_device, init_device
-from utils.crop_utils import crop_by_box_and_resize
-from utils.downsampling_utils import ClassWeightedModalDownSampler, downsample_labels
 from tqdm import tqdm
-import numpy as np
 import copy
 import sys
 sys.path.append("../")
 from utils.prototype_utils import extract_prototypes, segment_via_prototypes
 from utils.disk_utils import load_checkpoint_if_exists
+from utils.gamma_utils import calculate_threshold
+from utils.device_utils import to_device, init_device
+from utils.crop_utils import crop_by_box_and_resize
+from utils.downsampling_utils import ClassWeightedModalDownSampler, downsample_labels
 
 
 class SegmentationModel(nn.Module):
@@ -363,39 +363,28 @@ class SegmentationModel(nn.Module):
         else:
             return None
         
-
+    @torch.no_grad()
     def update_gamma(self, seg_masks_q, seg_masks_t):
         """
         Calculate confidence threshold gamma, such that:
-            the mean consistency between seg_masks_q and seg_masks_t is equal to the mean certainty of seg_masks_q
+            the number of consistent elements between seg_masks_q and seg_masks_t is equal to the number of certain elements of seg_masks_q
         """
 
-        segs_q, segs_t = seg_masks_q.detach().argmax(1), seg_masks_t.detach().argmax(1)
-        consistency_masks = torch.eq(segs_q, segs_t).float()
-        mean_consistency = consistency_masks.mean()
+        segs_q, segs_t = seg_masks_q.argmax(1), seg_masks_t.argmax(1)
+        consistency_masks = torch.eq(segs_q, segs_t)
+        num_consistent_pixels = torch.sum(consistency_masks == 0)
+        num_inconsistent_pixels = torch.numel(consistency_masks) - num_consistent_pixels
 
-        with torch.no_grad():
-            ### calculate gamma so that p(certain) = p(consistent) ###
-            reject_proportion = (1 - mean_consistency)
+        if self.opt.gamma_scaling == "softmax":
+            # gamma is threshold on softmax scores
+            confidences = torch.max(torch.softmax(seg_masks_q.detach()/self.opt.gamma_temp, dim=1), dim=1)[0]
+        else:
+            # gamma is threshold on logits
+            confidences = torch.max(seg_masks_q.detach(), dim=1)[0]
 
+        gamma = calculate_threshold(confidences, num_rejects=num_inconsistent_pixels)
 
-            # so gamma_scaling determines whether gamma is calculated from the cosine similarity scores or the softmax scores
-            if (self.opt.gamma_scaling is None) or (self.opt.gamma_scaling == "None"):
-                sims_per_pixel = torch.max(seg_masks_q.detach(), dim=1)[0]         # shape [bs, h, w]
-            elif self.opt.gamma_scaling == "softmax":
-                # use temperature weighted softmax scores (like in testing)
-                sims_per_pixel = torch.max(torch.softmax(seg_masks_q.detach()/self.opt.gamma_temp, dim=1), dim=1)[0]
-
-            sims_per_pixel = sims_per_pixel.flatten()
-            sims_per_pixel = torch.sort(sims_per_pixel, descending=False)[0]
-            num_pixels_to_reject = int(reject_proportion * sims_per_pixel.numel())
+        gamma = gamma * torch.ones(1, device=self.device).float()
+        self.gamma = gamma
 
 
-            num_pixels_to_reject = min(num_pixels_to_reject, sims_per_pixel.numel()-1)
-            cosine_sim_threshold = sims_per_pixel[num_pixels_to_reject]
-            gamma = cosine_sim_threshold * torch.ones(1, device=self.device).float()
-            self.gamma = gamma
-
-
-
-    

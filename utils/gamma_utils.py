@@ -20,17 +20,40 @@ def get_gamma_seg_masks(seg_masks, gamma):
 
 def get_gamma_masks(seg_masks, gamma):
     """
-    Calculates gamma masks, which are 1 where gamma is greater than the max class confidence, else 0.
-    i.e. gamma_masks are binary uncertainty masks.
+    Calculates gamma_masks, where gamma_masks = 1, when max(seg_masks) < gamma, else 0.
+    and gamma_masks = 0 when max(seg_masks) >= gamma,
+    i.e. it calculates binary uncertainty masks, where 1 indicates uncertain and 0 indicates certain.
 
     Args:
         seg_masks (torch.Tensor): Segmentation masks [bs, K, h, w]
         gamma (float): Confidence threshold
     Returns:
-        gamma_masks (torch.Tensor): Masks, where mask is 1
+        gamma_masks (torch.Tensor): Binary uncertainty masks
     """
-    num_known_classes = seg_masks.shape[1]
     gamma = gamma.detach()
-    gamma_seg_masks = get_gamma_seg_masks(seg_masks, gamma)
-    gamma_masks = torch.eq(torch.argmax(gamma_seg_masks, dim=1), num_known_classes).float()
+    gamma_masks = torch.lt(torch.max(seg_masks, dim=1).values, gamma).float()
     return gamma_masks
+
+def calculate_threshold(x, num_rejects=None):
+    """
+    Calculates the threshold such that num_rejects elements of x are < threshold.
+    Args:
+        x (torch.Tensor): Input tensor
+        num_rejects (int): Number of elements to reject
+    Returns:
+        threshold (float): Threshold value
+    """
+
+    x = x.flatten()
+    x = torch.sort(x, descending=False).values
+    threshold = x[num_rejects]
+    return threshold
+
+
+
+if __name__ == "__main__":
+    x = torch.randn(4, 4)  # Replace with your tensor
+    print(x.flatten().sort(descending=False).values)
+    threshold = calculate_threshold(x, num_rejects=10)
+    print("Threshold:", threshold)
+
