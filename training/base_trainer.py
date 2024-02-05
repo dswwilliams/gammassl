@@ -40,7 +40,6 @@ class BaseTrainer():
 
     def init_device(self):
         return init_device(gpu_no=self.opt.gpu_no, use_cpu=self.opt.use_cpu)
-    
 
     def init_model(self):
         from models.model import SegmentationModel

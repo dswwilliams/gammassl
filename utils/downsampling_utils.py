@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn.functional as F
 
 THING_CLASSES_WEIGHT = 10
@@ -56,6 +57,15 @@ class ClassWeightedModalDownSampler(torch.nn.Module):
         modes = F.fold(modes.float(), kernel_size=1, stride=1, output_size=(H//dsf, W//dsf))     # size: [bs, 1, H//dsf, W//dsf]
         modes = modes.squeeze(1).long()
         return modes
+    
+
+def downsample_labels(features, labels, downsampler):
+    feature_spatial_dim = features.shape[-1]
+    labels_spatial_dim = labels.shape[-1]
+    new_labels_spatial_dim = int(np.ceil(labels_spatial_dim/feature_spatial_dim) * feature_spatial_dim)
+    labels = F.interpolate(labels.unsqueeze(1).float(), size=(new_labels_spatial_dim, new_labels_spatial_dim), mode="nearest").squeeze(1).long()
+    low_res_labels = downsampler(labels, downsample_factor=new_labels_spatial_dim // feature_spatial_dim)
+    return low_res_labels
 
 
 
