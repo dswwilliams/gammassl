@@ -5,8 +5,6 @@ from tqdm import tqdm
 import wandb
 import matplotlib.pyplot as plt
 import sys
-sys.path.append("../")
-from utils.test_metric_utils import calculate_miou
 
 
 def get_nansum_and_count(a, dim):
@@ -190,3 +188,25 @@ def plot_val_ue_metrics(val_metrics, validation_count, dataset_name, plot_plots=
     wandb.log({"Validation: "+str(dataset_name)+"/F_0.5": val_metrics["fhalf"].max().float().item()}, commit=False)
     wandb.log({"Validation: "+str(dataset_name)+"/Segmentation Accuracy": val_metrics["p_accurate"][0].float().item()}, commit=False)
     wandb.log({"Validation: "+str(dataset_name)+"/Mean IoU": val_metrics["miou"][0].float().item()}, commit=False)
+
+
+def calculate_miou(segmentations, labels, num_classes):
+    total_iou = 0
+    n_active_classes = 0
+    for k in range(num_classes):
+        class_seg_mask = (segmentations == k).float()
+        class_label_mask = (labels == k).float()
+
+        intersection = (class_seg_mask * class_label_mask).sum()
+        union = torch.max(class_seg_mask, class_label_mask).sum()
+
+        if not (union == 0):
+            iou = intersection/union
+            total_iou += iou
+            n_active_classes += 1
+
+    if n_active_classes == 0:
+        miou = 0
+    else:
+        miou = total_iou/n_active_classes
+    return miou

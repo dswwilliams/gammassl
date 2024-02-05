@@ -21,7 +21,6 @@ def read_from_pickle(path):
         pass
 
 
-
 proto_save_path = "/Volumes/scratchdata/dw/gamma_star_gbranch_t/prototypes_6.pkl"
 
 

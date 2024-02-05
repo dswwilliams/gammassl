@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import pickle
 import os
 import numpy as np
-from utils.crop_utils import crop_by_box_and_resize
+from utils.candr_utils import crop_by_box_and_resize
 from utils.training_metric_utils import calculate_consistency2certainty_prob_metrics, calculate_p_certain_per_class
-from utils.test_metric_utils import calculate_miou
+from utils.validation_utils import calculate_miou
 import sys
 sys.path.append("../")
 from models.mask2former_loss import SetCriterion

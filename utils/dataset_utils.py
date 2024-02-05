@@ -48,9 +48,6 @@ class ImgColourTransform(nn.Module):
         return img.squeeze()
     
 
-
-
-
 def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
     if start_x is None:
         start_x = np.random.randint(low=0, high=(img.shape[1] - crop_size))

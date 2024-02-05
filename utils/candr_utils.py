@@ -3,21 +3,6 @@ import torch
 from kornia.geometry.transform import crop_by_boxes
 
 
-def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
-    if start_x is None:
-        start_x = np.random.randint(low=0, high=(img.shape[1] - crop_size))
-    end_x = start_x + crop_size
-    if start_y is None:
-        start_y = np.random.randint(low=0, high=(img.shape[0] - crop_size))
-    end_y = start_y + crop_size
-
-    crop = img[start_y:end_y, start_x:end_x] # shape: (crop_size, crop_size, 3)
-    
-    if label is not None:
-        label = label[start_y:end_y, start_x:end_x] # shape: (crop_size, crop_size)
-        return crop, label
-    else:
-        return crop
 
 
 def get_random_crop_boxes(input_size, min_crop_ratio, max_crop_ratio):

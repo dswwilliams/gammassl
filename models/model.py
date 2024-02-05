@@ -9,7 +9,7 @@ from utils.prototype_utils import extract_prototypes, segment_via_prototypes
 from utils.disk_utils import load_checkpoint_if_exists
 from utils.gamma_utils import calculate_threshold
 from utils.device_utils import to_device, init_device
-from utils.crop_utils import crop_by_box_and_resize
+from utils.candr_utils import crop_by_box_and_resize
 from utils.downsampling_utils import ClassWeightedModalDownSampler, downsample_labels
 
 

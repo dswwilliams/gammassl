@@ -10,7 +10,7 @@ sys.path.append("../")
 # import utils
 from training.base_trainer import BaseTrainer
 from utils.device_utils import to_device
-from utils.crop_utils import crop_by_box_and_resize
+from utils.candr_utils import crop_by_box_and_resize
 from utils.gamma_utils import get_gamma_masks
 from gammassl_losses import GammaSSLLosses
 

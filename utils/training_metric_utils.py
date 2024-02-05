@@ -1,6 +1,8 @@
 import torch
-
-
+"""
+TODO
+- either add more here, or move to a more appropriate location
+"""
 
 def calculate_p_certain_per_class(known_class_mask, segs_q, segs_t, num_known_classes):
     p_certain_per_class_q = torch.zeros(num_known_classes).cpu()

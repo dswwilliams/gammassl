@@ -4,7 +4,7 @@ import os
 import sys
 import csv
 sys.path.append("../")
-from utils.crop_utils import get_random_crop, get_random_crop_boxes
+from utils.candr_utils import get_random_crop_boxes
 
 ### definitions ###
 DOWNSAMPLE_FACTOR = 2.7273

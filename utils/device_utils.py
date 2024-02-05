@@ -6,6 +6,7 @@ def to_device(tensor, device):
     return tensor
 
 def get_lr(optimizer):
+    # TODO put this somewhere that makes more sense
     for param_group in optimizer.param_groups:
         return param_group['lr']
     
