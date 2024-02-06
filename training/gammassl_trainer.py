@@ -3,9 +3,6 @@ import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pickle
-import copy
-import numpy as np
 sys.path.append("../")
 # import utils
 from training.base_trainer import BaseTrainer
@@ -15,7 +12,9 @@ from utils.gamma_utils import get_gamma_masks
 from gammassl_losses import GammaSSLLosses
 
 class Trainer(BaseTrainer):
-    
+    """
+    Trainer class for GammaSSL.
+    """    
     def __init__(self, *args, **kwargs):
         super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
         
@@ -29,34 +28,40 @@ class Trainer(BaseTrainer):
         self.loss_weights = {key: val for key, val in vars(self.opt).items() if key.startswith("w_")}
     
     
-    def train_model(self, labelled_dict, raw_dict):
+    def train_model(self, labelled_dict, unlabelled_dict):
             """
             Trains the model by performing a labelled task and an unlabelled task.
             The unlabelled task implements GammaSSL training.
 
             Args:
-                labelled_dict (dict): A dictionary containing the labelled data.
-                raw_dict (dict): A dictionary containing the raw data.
+                labelled_dict (dict): A dict containing data from labelled domain.
+                unlabelled_dict (dict): A dict containing data from unlabelled domain.
 
             Returns:
-                tuple: A tuple containing the losses and metrics.
+                losses (dict): A dict containing all the losses ready for logging
+                metrics (dict): A dict containing all the metrics ready for logging
             """
             losses = {}
             metrics = {}
 
             self.calculate_prototype_loss_if_needed(losses)
 
+            # calculate losses on labelled domain
             self.perform_labelled_task(labelled_dict, losses, metrics)
 
+            # if performing GammaSSL training, calculate losses on unlabelled domain
             if not self.opt.sup_loss_only:
-                self.perform_unlabelled_task(raw_dict, losses, metrics)
+                self.perform_unlabelled_task(unlabelled_dict, losses, metrics)
 
+            # calculate grads and update model params
             self.update_model(losses)
             return losses, metrics
     
     def calculate_prototype_loss_if_needed(self, losses):
         if self.opt.use_proto_seg:
+            # calculate prototypes from random batch
             prototypes = self.model.calculate_batch_prototypes()
+            # calculate prototype loss
             losses["loss_p"] = self.losses.calculate_prototype_loss(prototypes)
 
     def update_model(self, losses):
@@ -80,59 +85,86 @@ class Trainer(BaseTrainer):
 
     
     def perform_labelled_task(self, labelled_dict, losses, metrics):
-        labelled_imgs = to_device(labelled_dict["img"], self.device)
+        """
+        Calculates losses for batch of data from labelled domain.
+        Fills dicts (losses and metrics) with losses and metrics to monitor training.
+        
+        Args:
+            labelled_dict (dict): A dict containing a batch of images, labels and crop locations from labelled domain
+            losses (dict): A dict containing previous losses - to be updated
+            metrics (dict): A dict containing previous metrics - to be updated
+        """
+        # data to device
+        imgs = to_device(labelled_dict["img"], self.device)
         labels = to_device(labelled_dict["label"], self.device)
-        labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
+        crop_boxes_tA = to_device(labelled_dict["box_A"], self.device)
 
-        labelled_imgs_A = crop_by_box_and_resize(labelled_imgs.detach(), labelled_crop_boxes_A)
-        labels = crop_by_box_and_resize(labels.unsqueeze(1).float(), labelled_crop_boxes_A, mode="nearest").squeeze(1).long()
+        # crop and resize images and labels, denoted by transform: tA
+        imgs_tA = crop_by_box_and_resize(imgs, crop_boxes_tA)
+        labels_tA = crop_by_box_and_resize(labels.unsqueeze(1).float(), crop_boxes_tA, mode="nearest").squeeze(1).long()
 
         if self.opt.model_arch == "vit_m2f":
-            m2f_outputs = self.model.seg_net.extract_m2f_output(labelled_imgs_A)
-            loss_ce, loss_dice, loss_mask, m2f_metrics = self.losses.calculate_m2f_losses(
-                                                                                m2f_outputs, 
-                                                                                labels, 
-                                                                                )
+            # calculate m2f supervised losses
+            m2f_outputs_tA = self.model.seg_net.extract_m2f_output(imgs_tA)
+            loss_ce, loss_dice, loss_mask, m2f_metrics = self.losses.calculate_m2f_losses(m2f_outputs_tA, labels_tA)
             losses["loss_ce"], losses["loss_dice"], losses["loss_mask"] = loss_ce, loss_dice, loss_mask
             metrics.update(m2f_metrics)
-
-        elif self.opt.model_arch == "deeplab":
-            labelled_seg_masks_A = self.model.get_seg_masks(labelled_imgs_A, high_res=True)
-            sup_loss, sup_metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels)
+        else:
+            # calculate standard supervised losses
+            seg_masks_tA = self.model.get_seg_masks(imgs_tA, high_res=True)
+            sup_loss, sup_metrics = self.losses.calculate_sup_loss(seg_masks_tA, labels_tA)
             losses["loss_s"] = sup_loss
             metrics.update(sup_metrics)
 
     
-    def perform_unlabelled_task(self, raw_dict, losses, metrics):
+    def perform_unlabelled_task(self, unlabelled_dict, losses, metrics):
+        """
+        Calculates losses for batch of images from unlabelled domain.
+        Fills dicts (losses and metrics) with losses and metrics to monitor training.
+
+        Args:
+            unlabelled_dict (dict): A dict containing a batch of images and crop locations from unlabelled domain
+                (imgs_t and imgs_q are the same images, but with different colour-space transformation applied).
+            unlabelled_dict (dict): A dict containing a batch of images and crop locations from unlabelled domain.
+            losses (dict): A dict containing previous losses - to be updated.
+            metrics (dict): A dict containing previous metrics - to be updated.
+        
+        """
         # data to device
-        raw_imgs_t = to_device(raw_dict["img_1"], self.device)
-        raw_imgs_q = to_device(raw_dict["img_2"], self.device)
-        raw_crop_boxes_A = to_device(raw_dict["box_A"], self.device)
-        raw_crop_boxes_B = to_device(raw_dict["box_B"], self.device)
+        imgs_t = to_device(unlabelled_dict["img_1"], self.device)
+        imgs_q = to_device(unlabelled_dict["img_2"], self.device)
+        crop_boxes_tA = to_device(unlabelled_dict["box_A"], self.device)
+        crop_boxes_tB = to_device(unlabelled_dict["box_B"], self.device)
 
-        # get seg_masks from TARGET branch
+        # TARGET branch
         with torch.no_grad():
-            raw_imgs_t_tA = crop_by_box_and_resize(raw_imgs_t, raw_crop_boxes_A)
-            seg_masks_t_tA = self.model.get_seg_masks(raw_imgs_t_tA, high_res=True, branch="target")
-            seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, raw_crop_boxes_B)
+            # crop and resize images, transform by tA
+            imgs_t_tA = crop_by_box_and_resize(imgs_t, crop_boxes_tA)
+            # get seg masks from target branch
+            seg_masks_t_tA = self.model.get_seg_masks(imgs_t_tA, high_res=True, branch="target")
+            # crop and resize seg_masks, transform by tB
+            seg_masks_t_tAB = crop_by_box_and_resize(seg_masks_t_tA, crop_boxes_tB)
 
-        # get seg_masks from QUERY branch
-        raw_imgs_q_tB = crop_by_box_and_resize(raw_imgs_q, raw_crop_boxes_B)
+        # QUERY branch
+        # crop and resize images, transform by tB
+        imgs_q_tB = crop_by_box_and_resize(imgs_q, crop_boxes_tB)
+        # get seg masks from query branch
         if self.opt.use_proto_seg:
-            raw_features_q_tB = self.model.seg_net.extract_features(raw_imgs_q_tB)
+            features_q_tB = self.model.seg_net.extract_features(imgs_q_tB)
             seg_masks_q_tB = self.model.proto_segment_features(
-                                                    features=raw_features_q_tB, 
-                                                    img_spatial_dims=raw_imgs_q.shape[-2:], 
+                                                    features=features_q_tB, 
+                                                    img_spatial_dims=imgs_q.shape[-2:], 
                                                     )
         else:
-            seg_masks_q_tB = self.model.get_seg_masks(raw_imgs_q_tB, high_res=True, branch="query")
-        seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, raw_crop_boxes_A)
+            seg_masks_q_tB = self.model.get_seg_masks(imgs_q_tB, high_res=True, branch="query")
+        # crop and resize seg_masks, transform by tA
+        seg_masks_q_tBA = crop_by_box_and_resize(seg_masks_q_tB, crop_boxes_tA)
 
-        # calculate uniformity loss
+        # calculate uniformity loss, if needed
         if self.opt.use_proto_seg:
-            losses["loss_u"] = self.losses.calculate_uniformity_loss(raw_features_q_tB)
+            losses["loss_u"] = self.losses.calculate_uniformity_loss(features_q_tB)
 
-        # get binary uncertainty masks with updated gamma
+        # update gamma using new seg masks, and calculate binary uncertainty masks for them
         self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
         gamma_masks_q = get_gamma_masks(seg_masks_q_tBA, gamma=self.model.gamma)
 
