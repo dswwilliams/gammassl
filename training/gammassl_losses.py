@@ -58,17 +58,55 @@ class SoftProbCrossEntropy(nn.Module):
             return xent.sum()
         elif self.reduction == "none":
             return xent
+        
+class UniformityLoss(nn.Module):
+    def __init__(self, kernel_size, stride, rbf_t, projection_net):
+        """
+        Calculates the uniformity loss, which maximises the uniformity of the given features.
+        TODO: cite paper
+        
+        Args:
+            kernel_size (int): Size of the kernel used to downsample the features.
+            stride (int): Stride of the kernel used to downsample the features.
+            rbf_t (float): Temperature for the radial basis function in the uniformity loss fn.
+            projection_net (nn.Module): A network that projects the features.
+        """
+        super(UniformityLoss, self).__init__()
 
 
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.rbf_t = rbf_t
+        if projection_net is not None:
+            self.projection_net = projection_net
+        else:
+            self.projection_net = nn.Identity()
 
-def uniformity_loss_fn(x, t=2):
-    return torch.pdist(x, p=2).pow(2).mul(-t).exp().mean().log()
+    def forward(self, features):
+        # downsample
+        low_res_features = F.avg_pool2d(
+                            features,
+                            kernel_size=(self.kernel_size, self.kernel_size),
+                            stride=self.stride,
+                            )
+
+        # project (if required)
+        low_res_features = self.projection_net(low_res_features)
+
+        # normalise
+        bs, feature_dim, h, w = low_res_features.shape
+        low_res_features = F.normalize(low_res_features.permute(0,2,3,1).reshape(bs*h*w, feature_dim), dim=1, p=2)
+
+        # calculate uniformity loss
+        loss_u = torch.pdist(low_res_features, p=2).pow(2).mul(-self.rbf_t).exp().mean().log()
+        return loss_u
+    
 
 class GammaSSLLosses:
     """
     Implements loss functions for the different types of GammaSSL training.
     """
-    def __init__(self, opt, num_known_classes):
+    def __init__(self, opt, num_known_classes, projection_net):
         self.opt = opt
         self.num_known_classes = num_known_classes
 
@@ -80,6 +118,13 @@ class GammaSSLLosses:
         self.sharpen = Sharpener(temp=opt.sharpen_temp)
         self.hard_xent = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
         self.soft_xent = SoftProbCrossEntropy(dim=1, reduction="none")
+        self.uniformity_loss_fn = UniformityLoss(
+                                    kernel_size=opt.uniformity_kernel_size,
+                                    stride=opt.uniformity_stride,
+                                    rbf_t=opt.rbf_t,
+                                    projection_net=projection_net,
+                                    )
+
         self.m2f_criterion = SetCriterion(
                         num_classes=num_known_classes,
                         matcher=HungarianMatcher(num_points=self.opt.num_points),
@@ -269,23 +314,9 @@ class GammaSSLLosses:
         else:
             return loss_c, ssl_metrics
     
-
     
-    def calculate_uniformity_loss(self, features, projection_net=None, rbf_t=2):
-        ### uniformity loss ###
-        # NOTE: average pooled THEN projected
-        low_res_features = F.avg_pool2d(
-                                    features,
-                                    kernel_size=(self.opt.uniformity_kernel_size, self.opt.uniformity_kernel_size),
-                                    stride=self.opt.uniformity_stride)
-        if projection_net is not None:
-            low_res_features = projection_net(low_res_features)
-        bs, feature_dim, h, w = low_res_features.shape
-        uniform_loss = uniformity_loss_fn(F.normalize(low_res_features.permute(0,2,3,1).reshape(bs*h*w, feature_dim), dim=1, p=2), 
-                                            t=rbf_t, 
-                                            no_exp=False)
-        return uniform_loss
-    
+    def calculate_uniformity_loss(self, features):
+        return self.uniformity_loss_fn(features)
 
     
     @staticmethod

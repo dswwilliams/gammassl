@@ -19,7 +19,11 @@ class Trainer(BaseTrainer):
     def __init__(self, *args, **kwargs):
         super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
         
-        self.losses = GammaSSLLosses(self.opt, self.device, num_known_classes=len(self.known_class_list))
+        self.losses = GammaSSLLosses(
+                            self.opt, 
+                            num_known_classes=len(self.known_class_list),
+                            projection_net=self.model.seg_net.projection_net,
+                            )
 
         # for all opts in self.opt, if it starts with "w_" then add it to self.loss_weights
         self.loss_weights = {key: val for key, val in vars(self.opt).items() if key.startswith("w_")}
@@ -126,10 +130,7 @@ class Trainer(BaseTrainer):
 
         # calculate uniformity loss
         if self.opt.use_proto_seg:
-            losses["loss_u"] = self.losses.calculate_uniformity_loss(
-                                                        raw_features_q_tB,
-                                                        self.model.seg_net.projection_net
-                                                        )
+            losses["loss_u"] = self.losses.calculate_uniformity_loss(raw_features_q_tB)
 
         # get binary uncertainty masks with updated gamma
         self.model.update_gamma(seg_masks_q=seg_masks_q_tBA, seg_masks_t=seg_masks_t_tAB)
