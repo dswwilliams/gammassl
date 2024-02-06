@@ -11,6 +11,7 @@ import copy
 sys.path.append("../")
 from models.get_dino_from_repo import get_repo_dino
 from models.base_seg_net import BaseSegNet
+from utils.m2f_utils import semantic_inference
 
 class ViT_M2F_SegNet(BaseSegNet):
     def __init__(self, device, opt, num_known_classes):
@@ -158,14 +159,6 @@ class ViT_M2F_SegNet(BaseSegNet):
         proj_features = self.projection_net(features)
         return proj_features
     
-    @staticmethod
-    def semantic_inference(mask_cls, mask_pred):
-
-        mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
-        mask_pred = mask_pred.sigmoid()
-        semseg = torch.einsum("bqc,bqhw->bchw", mask_cls, mask_pred)
-        return semseg
-
     def get_seg_masks(self, x, high_res=False, masks=None, return_mask_features=False):
         H, W = x.shape[-2:]
         # we want grads if lora rank is not None or if train_vit is True
@@ -187,7 +180,7 @@ class ViT_M2F_SegNet(BaseSegNet):
         if high_res:
             output["pred_masks"] = F.interpolate(output["pred_masks"], size=(H, W), mode="bilinear", align_corners=False)
 
-        seg_masks = self.semantic_inference(output["pred_logits"], output["pred_masks"])
+        seg_masks = semantic_inference(output["pred_logits"], output["pred_masks"])
 
         if return_mask_features:
             return seg_masks, deep_features_list[-1]

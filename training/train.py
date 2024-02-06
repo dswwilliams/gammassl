@@ -61,6 +61,7 @@ parser.add_argument("--include_void", type=str2bool, default=False, help="whethe
 parser.add_argument("--uniformity_kernel_size", type=int, default=4, help="hyperparam for uniformity loss")
 parser.add_argument("--uniformity_stride", type=int, default=4, help="hyperparam for uniformity loss")
 parser.add_argument('--num_points', type=int, default=12544, help="hyperparam for mask2former losses")
+# TODO: not connected to anything, this should be self.opt.temperature
 parser.add_argument('--loss_c_temp', type=float, default=0.1, help="temperature applied for calculating consistency loss")
 
 

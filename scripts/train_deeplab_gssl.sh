@@ -12,5 +12,6 @@ python3 "$train_py_path" \
                 --use_proto_seg True \
                 --frozen_target False \
                 --mask_input False \
+                --temperature 0.07 \
                 $*
 

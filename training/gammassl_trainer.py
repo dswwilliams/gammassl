@@ -85,20 +85,20 @@ class Trainer(BaseTrainer):
         labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
 
         labelled_imgs_A = crop_by_box_and_resize(labelled_imgs.detach(), labelled_crop_boxes_A)
+        labels = crop_by_box_and_resize(labels.unsqueeze(1).float(), labelled_crop_boxes_A, mode="nearest").squeeze(1).long()
 
         if self.opt.model_arch == "vit_m2f":
             m2f_outputs = self.model.seg_net.extract_m2f_output(labelled_imgs_A)
             loss_ce, loss_dice, loss_mask, m2f_metrics = self.losses.calculate_m2f_losses(
                                                                                 m2f_outputs, 
                                                                                 labels, 
-                                                                                labelled_crop_boxes_A
                                                                                 )
             losses["loss_ce"], losses["loss_dice"], losses["loss_mask"] = loss_ce, loss_dice, loss_mask
             metrics.update(m2f_metrics)
 
         elif self.opt.model_arch == "deeplab":
             labelled_seg_masks_A = self.model.get_seg_masks(labelled_imgs_A, high_res=True)
-            sup_loss, sup_metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels, labelled_crop_boxes_A)
+            sup_loss, sup_metrics = self.losses.calculate_sup_loss(labelled_seg_masks_A, labels)
             losses["loss_s"] = sup_loss
             metrics.update(sup_metrics)
 

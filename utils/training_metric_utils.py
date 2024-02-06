@@ -1,5 +1,5 @@
 import torch
-from ue_testing.test_utils import calculate_fbeta_score, calculate_accuracy
+from ue_testing.test_utils import calculate_fbeta_score, calculate_accuracy, calculate_miou
 
 def get_states():
     """
@@ -115,13 +115,13 @@ def calculate_ue_training_metrics(consistency_masks, certainty_masks):
 
 
 @torch.no_grad()
-def get_consistency_metrics(logits_t, logits_q, certainty_masks, detailed_metrics=False):
+def get_consistency_metrics(p_y_given_x_t, p_y_given_x_q, certainty_masks, detailed_metrics=False):
     """
     Compute and return consistency training metrics.
 
     Args:
-        logits_t (torch.Tensor): Logits from the target branch.
-        logits_q (torch.Tensor): Logits from the query branch.
+        p_y_given_x_t (torch.Tensor): Pixel-wise categorical distribution from the target branch.
+        p_y_given_x_q (torch.Tensor): Pixel-wise categorical distribution from the query branch.
         certainty_masks (torch.Tensor): Mask where 1 indicates certain pixels, 0 indicates uncertain pixels.
         detailed_metrics (bool): If True, compute and return a comprehensive set of metrics.
                                   If False, compute and return only key metrics.
@@ -130,21 +130,21 @@ def get_consistency_metrics(logits_t, logits_q, certainty_masks, detailed_metric
         A dictionary of computed metrics.
     """
     # remove logits from graph
-    logits_t, logits_q = logits_t.detach(), logits_q.detach()
+    p_y_given_x_t, p_y_given_x_q = p_y_given_x_t.detach(), p_y_given_x_q.detach()
 
     metrics = {}
-    num_known_classes = logits_q.shape[1]
+    num_known_classes = p_y_given_x_t.shape[1]
 
     # calculate mean max softmax, i.e. mean certainty
-    metrics["mean_max_softmax_q"] = torch.max(torch.softmax(logits_q, dim=1), dim=1).values.mean().cpu()
-    metrics["mean_max_softmax_t"] = torch.max(torch.softmax(logits_t, dim=1), dim=1).values.mean().cpu()
+    metrics["mean_max_softmax_t"] = torch.max(p_y_given_x_t, dim=1).values.mean().cpu()
+    metrics["mean_max_softmax_q"] = torch.max(p_y_given_x_q, dim=1).values.mean().cpu()
 
     # calculate proportion of certain pixels
     metrics["p_certain_q"] = certainty_masks.mean().cpu()
 
     # calculate segmentation from seg masks
-    segs_t = torch.argmax(logits_t, dim=1)
-    segs_q = torch.argmax(logits_q, dim=1)
+    segs_t = torch.argmax(p_y_given_x_t, dim=1)
+    segs_q = torch.argmax(p_y_given_x_q, dim=1)
 
     consistency_masks = torch.eq(segs_q, segs_t).float()
     metrics["p_consistent"] = consistency_masks.float().mean().cpu()
@@ -169,3 +169,19 @@ def get_consistency_metrics(logits_t, logits_q, certainty_masks, detailed_metric
 
     return metrics
 
+
+
+
+def calculate_supervised_metrics(seg_masks, labels):
+    # remove from graph
+    seg_masks = seg_masks.detach()
+    
+    metrics = {}
+    num_known_classes = seg_masks.shape[1]
+    segs = torch.argmax(seg_masks, dim=1)
+
+    metrics["labelled_miou"] = calculate_miou(segs, labels, num_classes=num_known_classes)
+    metrics["labelled_accuracy"] = torch.eq(segs, labels).float().mean()
+    metrics["labelled_mean_max_softmax"] = torch.max(torch.softmax(seg_masks, dim=1), dim=1).values.mean().cpu()
+
+    return metrics

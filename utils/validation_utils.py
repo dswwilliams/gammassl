@@ -194,19 +194,21 @@ def calculate_miou(segmentations, labels, num_classes):
     total_iou = 0
     n_active_classes = 0
     for k in range(num_classes):
-        class_seg_mask = (segmentations == k).float()
-        class_label_mask = (labels == k).float()
+        class_seg_mask = torch.eq(segmentations, k)
+        class_label_mask = torch.eq(labels, k)
 
-        intersection = (class_seg_mask * class_label_mask).sum()
-        union = torch.max(class_seg_mask, class_label_mask).sum()
+        intersection = torch.bitwise_and(class_seg_mask, class_label_mask).sum()
+        union = torch.bitwise_or(class_seg_mask, class_label_mask).sum()
 
-        if not (union == 0):
+        if union > 0:
             iou = intersection/union
             total_iou += iou
             n_active_classes += 1
 
-    if n_active_classes == 0:
-        miou = 0
-    else:
+
+    if n_active_classes > 0:
         miou = total_iou/n_active_classes
+    else:
+        miou = 0
+
     return miou
