@@ -5,50 +5,51 @@ import pickle
 import os
 import numpy as np
 from utils.candr_utils import crop_by_box_and_resize
-from utils.training_metric_utils import calculate_consistency2certainty_prob_metrics, calculate_p_certain_per_class
+from utils.training_metric_utils import calculate_consistency2certainty_prob_metrics, calculate_p_certain_per_class, get_consistency_metrics
 from utils.validation_utils import calculate_miou
 import sys
 sys.path.append("../")
 from models.mask2former_loss import SetCriterion
-
-
-
-def sharpen(p, dim=1, temp=0.25):
-    sharp_p = p**(1./temp)
-    sharp_p /= torch.sum(sharp_p, dim=dim, keepdim=True)
-    return sharp_p
+from models.matcher import HungarianMatcher
 
 
 class Sharpener(nn.Module):
-    def __init__(self, temp):
+    """
+    Reduces the entropy of the distribution.
+    Raises the probabilities to the power of (1/temperature) and then re-normalises.
+    Lower temperature -> lower entropy (for temp <  1)
+    """
+    def __init__(self, temperature=0.25):
         super(Sharpener, self).__init__()
-        self.temp = temp
+        self.temperature = temperature
     
-    def forward(self, x):
-        return sharpen(x, dim=1, temp=self.temp)
+    def forward(self, p, dim=1):
+        sharp_p = p**(1/self.temperature)
+        sharp_p /= torch.sum(sharp_p, dim=dim, keepdim=True)
+        return sharp_p
 
 
+class SoftProbCrossEntropy(nn.Module):
+    """
+    Cross-entropy loss function for which the target is a soft probability distribution.
+    """
 
-class TrueCrossEntropy(nn.Module):
     def __init__(self, dim, reduction="mean"):
-        super(TrueCrossEntropy, self).__init__()
+        super(SoftProbCrossEntropy, self).__init__()
         self.dim = dim
         self.reduction = reduction
 
     def forward(self, target_probs, query_probs):
         """ 
         xent = sum( - p * log(q) ) = sum*(log(q**-p))
-        p: target
-        q: input
+        where: p = target and q = input
         """
-        
-        p = target_probs
-        q = query_probs
 
-        p = p + 1e-7
-        q = q + 1e-7
+        # for numerical stability
+        target_probs = target_probs + 1e-7
+        query_probs = query_probs + 1e-7
 
-        xent = torch.log(q**-p)
+        xent = torch.log(query_probs**-target_probs)
             
         xent = torch.sum(xent, dim=self.dim, keepdim=False)
         if self.reduction == "mean":
@@ -59,35 +60,26 @@ class TrueCrossEntropy(nn.Module):
             return xent
 
 
-def uniformity_loss_fn(x, t=2, no_exp=False):
-    if no_exp:
-        return torch.pdist(x, p=2).pow(2).mul(-t).mean()
-    else:
-        return torch.pdist(x, p=2).pow(2).mul(-t).exp().mean().log()
 
+def uniformity_loss_fn(x, t=2):
+    return torch.pdist(x, p=2).pow(2).mul(-t).exp().mean().log()
 
 class GammaSSLLosses:
-    def __init__(self, opt, device, num_known_classes):
+    """
+    Implements loss functions for the different types of GammaSSL training.
+    """
+    def __init__(self, opt, num_known_classes):
         self.opt = opt
         self.num_known_classes = num_known_classes
-        self.device = device
+
+        self.temperature = opt.temperature
+
+        # determine whether to include void class in loss
+        ignore_index = -100 if self.opt.include_void else self.num_known_classes
 
         self.sharpen = Sharpener(temp=opt.sharpen_temp)
-
-        ### setting up loss functions ###
-        if self.opt.include_void:
-            ignore_index = -100             # i.e. void class is included in supervised loss
-            # add class weight for void class
-        else:
-            # ignore void pixel labels
-            ignore_index = self.num_known_classes
-
-        # define supervised loss function
-        self.sup_xent_loss_fn = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
-
-        self.ssl_xent_loss_fn = TrueCrossEntropy(dim=1, reduction="none")
-
-        from models.matcher import HungarianMatcher
+        self.hard_xent = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
+        self.soft_xent = SoftProbCrossEntropy(dim=1, reduction="none")
         self.m2f_criterion = SetCriterion(
                         num_classes=num_known_classes,
                         matcher=HungarianMatcher(num_points=self.opt.num_points),
@@ -99,74 +91,49 @@ class GammaSSLLosses:
                         importance_sample_ratio=0.75,   # from config
                     )
 
-    ##########################################################################################################################################################
-    def calculate_ssl_loss(self, seg_masks_t, seg_masks_q, gamma_masks_q):
-        ### calculating consistency loss ###
-        # where certain, minimise cross-entropy over ALL K classes 
-        ssl_losses = {}
-        ssl_metrics = {}
+    
+    def calculate_consistency_loss(self, seg_masks_t, seg_masks_q, gamma_masks_q):
+        """
+        Calculates the GammaSSL consistency loss.
+        The consistency is maximised only where seg_masks_q is certain.
+        Consistency is measured as the cross-entropy between seg_masks_t and seg_masks_q.
 
-        if self.opt.sharpen_temp is not None:
-            _sharpen = self.sharpen
-        else:
-            _sharpen = lambda x: x
+        Args:
+            seg_masks_t (tensor): Segmentation masks for target branch [bs, K, H, W]
+            seg_masks_q (tensor): Segmentation masks for query branch [bs, K, H, W]
+            gamma_masks_q (tensor): Masks defining pixels where seg_masks_q is uncertain [bs, H, W] 
 
-        target_temp = self.opt.temperature
-        query_temp = self.opt.temperature
-        logits_1_to_K_t = seg_masks_t / target_temp
-        logits_1_to_K_q = seg_masks_q / query_temp
-        xent = self.ssl_xent_loss_fn(_sharpen(torch.softmax(logits_1_to_K_t, dim=1)), torch.softmax(logits_1_to_K_q, dim=1))
+        Returns:
+            loss_c (tensor): consistency loss [1]
+            consistency_metrics (dict): dictionary of training metrics
+        """
+        _sharpen = self.sharpen if self.opt.sharpen_temp is not None else lambda x: x
 
-        ssl_metrics["mean_max_softmax_query"] = torch.max(torch.softmax(logits_1_to_K_q.detach(), dim=1), dim=1)[0].mean().cpu()
-        ssl_metrics["mean_max_softmax_target"] = torch.max(torch.softmax(logits_1_to_K_t.detach(), dim=1), dim=1)[0].mean().cpu()
+
+        logits_t = seg_masks_t / self.temperature
+        logits_q = seg_masks_q / self.temperature
+        xent = self.soft_xent(_sharpen(torch.softmax(logits_t, dim=1)), torch.softmax(logits_q, dim=1))
+
+
         
-        ### mask certain regions ###
+        # certainty mask is 1 where the query branch is certain else 0
         certainty_mask = (1 - gamma_masks_q.float())
         if self.opt.no_filtering:
             certainty_mask = torch.ones_like(certainty_mask)
+
         if certainty_mask.sum() == 0:
-            xent = torch.zeros_like(xent, requires_grad=True)[0,0,0]
+            # avoid division by zero
+            loss_c = torch.zeros_like(xent, requires_grad=True)[0,0,0]
         else:
-            xent = (xent * certainty_mask).sum() / certainty_mask.sum() 
-        loss_c = xent
+            # calculating mean cross-entropy over the regions that are certain
+            loss_c = (xent * certainty_mask).sum() / certainty_mask.sum()
 
+        consistency_metrics = get_consistency_metrics(logits_t, logits_q, certainty_mask, detailed_metrics=self.opt.detailed_metrics)
 
-        ### calculating metrics ###
-        with torch.no_grad():
-            segs_t = torch.argmax(seg_masks_t, dim=1).cpu()
-            segs_q = torch.argmax(seg_masks_q, dim=1).cpu()
+        return loss_c, consistency_metrics
+    
 
-            ssl_metrics["p_certain_q"] = certainty_mask.mean().cpu()
-
-            ssl_metrics["p_certain_per_class_q"], ssl_metrics["p_certain_per_class_t"] = calculate_p_certain_per_class(
-                                                                                                                certainty_mask, 
-                                                                                                                segs_q, 
-                                                                                                                segs_t, 
-                                                                                                                num_known_classes=self.num_known_classes,
-                                                                                                                )
-
-            # of the pixels that are consistent, calculate which classes they belong to
-            consistency_masks = torch.eq(segs_q, segs_t).float().cpu()
-            p_consistent_per_class = torch.zeros(self.num_known_classes).cpu()
-            for k in range(self.num_known_classes):
-                p_consistent_per_class[k]= torch.eq((consistency_masks.cpu() * (segs_q.cpu() + 1) - 1), k).float().sum() / consistency_masks.sum()
-            
-            ssl_metrics["p_consistent_per_class"] = p_consistent_per_class
-            ssl_metrics["p_consistent"] = consistency_masks.float().mean().cpu()
-
-            certainty_metrics = calculate_consistency2certainty_prob_metrics(
-                                                    accuracy_masks=consistency_masks,
-                                                    confidence_masks=certainty_mask.cpu(),
-                                                    )
-
-            for key in certainty_metrics:
-                if not (key == "p_certain"):
-                    ssl_metrics[key] = (certainty_metrics[key].nansum() / (~certainty_metrics[key].isnan()).sum()).cpu()
-
-        return loss_c, ssl_metrics
-    ##########################################################################################################################################################
-
-    ##########################################################################################################################################################
+    
     def calculate_masking_ssl_loss(self, seg_masks_t, seg_masks_q, gamma_masks_q, raw_masks_q, raw_masks_t, valid_masking_region_masks=None, return_loss_imgs=False):
         ### calculating consistency loss ###
         # where certain, minimise cross-entropy over ALL K classes 
@@ -185,7 +152,7 @@ class GammaSSLLosses:
 
         p_y_given_x_t = _sharpen(torch.softmax(logits_1_to_K_t, dim=1))
         p_y_given_x_q = torch.softmax(logits_1_to_K_q, dim=1)
-        xent = self.ssl_xent_loss_fn(p_y_given_x_t, p_y_given_x_q)
+        xent = self.soft_xent(p_y_given_x_t, p_y_given_x_q)
 
         ssl_metrics["mean_max_softmax_query"] = torch.max(p_y_given_x_q, dim=1)[0].mean().cpu()
         ssl_metrics["mean_max_softmax_target"] = torch.max(p_y_given_x_t, dim=1)[0].mean().cpu()
@@ -284,12 +251,6 @@ class GammaSSLLosses:
             ssl_metrics["mean_max_softmax_query_unmasked_consistent"] = (ms_imgs_q * consistency_masks * (1-raw_masks_q.float())).sum() / (consistency_masks * (1-raw_masks_q.float())).sum()
             ssl_metrics["mean_max_softmax_query_unmasked_inconsistent"] = (ms_imgs_q * (1-consistency_masks) * (1-raw_masks_q.float())).sum() / ((1-consistency_masks) * (1-raw_masks_q.float())).sum()
 
-            # NOTE: that if p_certain = p_consistent, then certainty_mask.sum() = consistency_masks.sum(), 
-            # therefore p_consistent_g_certain = p_certain_g_consistent, and p_consistent_g_uncertain = p_certain_g_inconsistent
-            # ssl_metrics["p_certain_g_consistent"] = ((certainty_mask * consistency_masks).sum() / (consistency_masks.sum() + 1e-8)).cpu()
-            # ssl_metrics["p_certain_g_inconsistent"] = ((certainty_mask * (1-consistency_masks)).sum() / ((1-consistency_masks).sum() + 1e-8)).cpu()
-            # ssl_metrics["p_uncertain_g_consistent"] = (((1-certainty_mask) * consistency_masks).sum() / (consistency_masks.sum() + 1e-8)).cpu()
-            # ssl_metrics["p_uncertain_g_inconsistent"] = (((1-certainty_mask) * (1-consistency_masks)).sum() / ((1-consistency_masks).sum() + 1e-8)).cpu()
 
             consistency_masks = consistency_masks.cpu()
             certainty_mask = certainty_mask.cpu()
@@ -307,55 +268,9 @@ class GammaSSLLosses:
             return xent_loss_imgs
         else:
             return loss_c, ssl_metrics
-    ##########################################################################################################################################################
+    
 
-    # ##########################################################################################################################################################
-    # def calculate_kl_uniform_loss(self, seg_masks_q, gamma_masks_q):
-    #     ### calculating consistency loss ###
-    #     # where certain, minimise cross-entropy over ALL K classes 
-        
-    #     kld_metrics = {}
-
-    #     if self.opt.sharpen_temp is not None:
-    #         _sharpen = self.sharpen
-    #     else:
-    #         _sharpen = lambda x: x
-
-    #     logits_1_to_K_q = seg_masks_q / (self.opt.kl_temp)
-
-    #     # compute KL divergence between uniform and softmax
-    #     # kl_target is uniform distribution over K classes
-    #     kl_target = torch.ones_like(logits_1_to_K_q) / logits_1_to_K_q.shape[1]
-    #     kld = F.kl_div(
-    #                 input=torch.log_softmax(logits_1_to_K_q, dim=1), 
-    #                 target=kl_target, 
-    #                 reduction="none",
-    #                 ).sum(1)
-
-
-    #     # we only backprop loss on uncertain regions
-    #     uncertainty_mask = gamma_masks_q.float()      # 1 where uncertain, 0 where certain
-
-    #     with torch.no_grad():
-    #         max_softmax_query = torch.softmax(logits_1_to_K_q, dim=1).max(dim=1)[0]     # [bs, h, w]
-
-    #         print(f"in calculate_kl_uniform_loss, max_softmax_query min mean max: {max_softmax_query.min()}, {max_softmax_query.mean()}, {max_softmax_query.max()}")
-
-    #         kld_metrics["mean_max_softmax_query_uncertain"] = (max_softmax_query * uncertainty_mask).sum() / uncertainty_mask.sum()
-    #         kld_metrics["mean_max_softmax_query_certain"] = (max_softmax_query * (1-uncertainty_mask)).sum() / (1-uncertainty_mask).sum()
-
-    #     if not self.opt.no_filtering:
-    #         if uncertainty_mask.sum() == 0:
-    #             loss_kl = torch.zeros_like(kld, requires_grad=True)[0,0,0]
-    #         else:
-    #             loss_kl = (kld * uncertainty_mask).sum() / uncertainty_mask.sum()
-    #     else:
-    #         loss_kl = torch.zeros_like(kld.mean())
-
-    #     return loss_kl, kld_metrics
-    # ##########################################################################################################################################################
-
-    ######################################################################################################################################################
+    
     def calculate_uniformity_loss(self, features, projection_net=None, rbf_t=2):
         ### uniformity loss ###
         # NOTE: average pooled THEN projected
@@ -370,9 +285,9 @@ class GammaSSLLosses:
                                             t=rbf_t, 
                                             no_exp=False)
         return uniform_loss
-    ######################################################################################################################################################
+    
 
-    ######################################################################################################################################################
+    
     @staticmethod
     def calculate_prototype_loss(prototypes, output_metrics=False):
         # Dot product of normalized prototypes is cosine similarity.
@@ -389,16 +304,16 @@ class GammaSSLLosses:
             return loss.mean(), sep
         else:
             return loss.mean()
-    ######################################################################################################################################################
+    
 
-    ######################################################################################################################################################
+    
     def calculate_sup_loss(self, labelled_seg_masks, labels, labelled_crop_boxes_A):
         sup_metrics = {}
 
         ### supervised loss ###
         labels = crop_by_box_and_resize(labels.unsqueeze(1).float(), labelled_crop_boxes_A, mode="nearest").squeeze(1).long()
         # NOTE: not divided by self.opt.temperature
-        sup_loss = self.sup_xent_loss_fn(labelled_seg_masks, labels)
+        sup_loss = self.hard_xent(labelled_seg_masks, labels)
         sup_loss = sup_loss.mean()
 
 
@@ -409,13 +324,13 @@ class GammaSSLLosses:
             sup_metrics["labelled_miou"] = calculate_miou(labelled_segs, labels, num_classes=self.num_known_classes+1)
             sup_metrics["labelled_accuracy"] = torch.eq(labelled_segs, labels).float().mean()
         return sup_loss, sup_metrics
-    ######################################################################################################################################################
+    
 
-    ######################################################################################################################################################
+    
     def calculate_masking_sup_loss(self, seg_masks, labels, masks):
         masking_metrics = {}
 
-        masking_loss = self.sup_xent_loss_fn(seg_masks, labels)
+        masking_loss = self.hard_xent(seg_masks, labels)
         # This loss is only calculated over the masked regions
         masking_loss = (masking_loss * masks).sum() / masks.sum()
 
@@ -427,7 +342,7 @@ class GammaSSLLosses:
             masking_metrics["labelled_accuracy"] = torch.eq(labelled_segs, labels).float().mean()
 
         return masking_loss, masking_metrics
-    ######################################################################################################################################################
+    
 
     @staticmethod
     def semantic_inference(mask_cls, mask_pred):
@@ -436,7 +351,7 @@ class GammaSSLLosses:
         semseg = torch.einsum("bqc,bqhw->bchw", mask_cls, mask_pred)
         return semseg
 
-    ######################################################################################################################################################
+    
     def calculate_m2f_losses(self, outputs, labels, labelled_crop_boxes_A, masking_masks=None):
         """
         - outputs["pred_logits"]: [B, Q, K+1]
@@ -488,33 +403,3 @@ class GammaSSLLosses:
             # metrics["sup_mean_max_softmax_temp"] = torch.softmax(seg_masks/self.opt.temperature, dim=1).max(1)[0].mean().cpu()
 
         return loss_ce, loss_dice, loss_mask, metrics
-    ######################################################################################################################################################
-
-    ######################################################################################################################################################
-    def calculate_m2f_losses_xent(self, outputs, labels, labelled_crop_boxes_A):
-        """
-        - outputs["pred_logits"]: [B, Q, K+1]
-        - outputs["pred_masks"]: [B, Q, H, W]
-        - labels: [B, H, W]
-        """
-        metrics = {}
-        labels = crop_by_box_and_resize(labels.unsqueeze(1).float(), labelled_crop_boxes_A, mode="nearest").squeeze(1).long()
-
-        seg_masks = self.semantic_inference(mask_cls=outputs["pred_logits"], mask_pred=outputs["pred_masks"])
-
-        losses = {}
-        losses["loss_m2f_xent"] = self.sup_xent_loss_fn(seg_masks, labels).mean()
-
-        with torch.no_grad():
-            segs = torch.argmax(seg_masks, dim=1)
-            metrics["m2f_miou"] = calculate_miou(segs, labels, num_classes=self.num_known_classes)
-            metrics["m2f_accuracy"] = torch.eq(segs, labels).float().mean()
-
-            metrics["sup_mean_max_softmax"] = torch.softmax(seg_masks, dim=1).max(1)[0].mean().cpu()
-            metrics["sup_mean_max_softmax_temp"] = torch.softmax(seg_masks/self.opt.temperature, dim=1).max(1)[0].mean().cpu()
-
-        return losses, metrics
-    ######################################################################################################################################################
-
-
-

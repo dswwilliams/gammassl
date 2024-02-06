@@ -136,6 +136,6 @@ class Trainer(BaseTrainer):
         gamma_masks_q = get_gamma_masks(seg_masks_q_tBA, gamma=self.model.gamma)
 
         # calculate consistency loss
-        losses["loss_c"], ssl_metrics = self.losses.calculate_ssl_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
+        losses["loss_c"], ssl_metrics = self.losses.calculate_consistency_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
         metrics.update(ssl_metrics)
         

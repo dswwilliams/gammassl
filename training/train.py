@@ -118,6 +118,7 @@ parser.add_argument("--num_thresholds", type=int, default=500, help="number of t
 
 # ======================== Logging, Loading and Saving ========================
 parser.add_argument('--use_wandb', type=str2bool, default=True, help="whether to use wandb for logging, else use visdom")
+parser.add_argument('--detailed_metrics', type=str2bool, default=True, help="whether to log all training metrics, or just key metrics")
 parser.add_argument('--log_every', type=int, default=1, help="frequency of logging w.r.t. number of training iterations")
 parser.add_argument('--wandb_project', type=str, default="test", help="name of wandb project")
 parser.add_argument('--save_every', type=int,  default=1, help="frequency of saving w.r.t. number of times validated")
