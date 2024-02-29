@@ -21,18 +21,19 @@ class SegmentationModel(nn.Module):
           i.e. they call generic functions from the self.seg_net
     """
     
-    def __init__(self, opt, known_class_list, training_dataset, validation_dataset):
+    def __init__(self, opt, known_class_list, training_dataset, crop_size):
         super().__init__()
         self.opt = opt
+        self.crop_size = crop_size
         self.num_known_classes = len(known_class_list)
 
         self.device = init_device(gpu_no=self.opt.gpu_no, use_cpu=self.opt.use_cpu)
-        self.seg_net, self.crop_size, self.patch_size = self.init_seg_net()
+        self.seg_net, self.patch_size = self.init_seg_net()
         self.target_seg_net = self.init_target_seg_net()
         self.gamma = self.init_gamma()
         self.dataset_prototypes = self.init_dataset_prototypes()
         self.class_weighted_modal_downsampler = ClassWeightedModalDownSampler(known_class_list)
-        self.init_prototype_dataloaders(training_dataset, validation_dataset)
+        self.init_prototype_dataloaders(training_dataset)
         self.optimizers = self.init_optimizers()
         self.schedulers = self.init_schedulers()
 
@@ -41,13 +42,11 @@ class SegmentationModel(nn.Module):
         self.old_prototypes = None
 
     def init_seg_net(self):
-        # determine model architecture, and corresponding crop_size
+        # determine model architecture
         if self.opt.model_arch == "vit_m2f":
             from models.vit_m2f_seg_net import ViT_M2F_SegNet as SegNet
-            crop_size = 224
         elif self.opt.model_arch == "deeplab":
             from models.deeplab_seg_net import DeepLabSegNet as SegNet
-            crop_size = 256
 
         # init seg_net
         seg_net = SegNet(self.device, self.opt, num_known_classes=self.num_known_classes)
@@ -63,7 +62,7 @@ class SegmentationModel(nn.Module):
 
         load_checkpoint_if_exists(seg_net, self.opt.save_path)
 
-        return seg_net, crop_size, patch_size
+        return seg_net, patch_size
     
     def init_target_seg_net(self):
         if self.opt.frozen_target:
@@ -92,23 +91,20 @@ class SegmentationModel(nn.Module):
         else:
             self.dataset_prototypes = None
 
-    def init_prototype_dataloaders(self, training_dataset, validation_dataset):
-        train_proto_dataset = copy.deepcopy(training_dataset)
-        train_proto_dataset.only_labelled = True
+    def init_prototype_dataloaders(self, training_dataset):
+        self.train_proto_dataset = copy.deepcopy(training_dataset)
+        self.train_proto_dataset.only_labelled = True
+        self.train_proto_dataset.no_appearance_transform = True
+        self.train_proto_dataset.add_resize_noise = False
+        self.train_proto_dataset.no_colour = True
+        self.train_proto_dataset.crop_size = self.crop_size   
         self.train_proto_dataloader = torch.utils.data.DataLoader(
-                                                    dataset=train_proto_dataset, 
+                                                    dataset=self.train_proto_dataset, 
                                                     batch_size=self.opt.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=self.opt.num_workers, 
                                                     drop_last=True)
         self.train_proto_iterator = iter(self.train_proto_dataloader)
-
-        self.val_proto_dataset = copy.deepcopy(validation_dataset)
-        self.val_proto_dataset.only_labelled = True
-        self.val_proto_dataset.no_appearance_transform = True
-        self.val_proto_dataset.add_resize_noise = False
-        self.val_proto_dataset.no_colour = True
-        self.val_proto_dataset.crop_size = self.crop_size   
 
     def init_optimizers(self):
         _optimizer = torch.optim.AdamW
@@ -331,7 +327,7 @@ class SegmentationModel(nn.Module):
         if self.opt.prototypes_path is None:
             """ Calculate prototype from entire dataset """
             dataloader = torch.utils.data.DataLoader(
-                                    self.val_proto_dataset, 
+                                    self.train_proto_dataset, 
                                     batch_size=self.opt.batch_size, 
                                     shuffle=True, 
                                     num_workers=self.opt.num_workers, 

@@ -19,10 +19,11 @@ class BaseTrainer():
         self.known_class_list = self.get_known_classes()
         self.init_logging()
 
+        self.crop_size = self.get_crop_size()
         self.device = self.init_device()
+        self.dataloader = self.init_training_dataloader()
         self.model = self.init_model()
         self.validator = self.init_validation()
-        self.dataloader = self.init_training_dataloader()
     
     def set_random_seed(self):
         torch.manual_seed(self.RANDOM_SEED)
@@ -32,6 +33,14 @@ class BaseTrainer():
     def get_known_classes(self):
         return ["road", "sidewalk", "building", "wall", "fence", "pole", "traffic_light", "traffic_sign",
                 "vegetation", "terrain", "sky", "person", "rider", "car", "truck", "bus", "train", "motorcycle", "bicycle"]
+    
+    def get_crop_size(self):
+        # get crop size to define dataset
+        if self.opt.model_arch == "vit_m2f":
+            crop_size = 224
+        elif self.opt.model_arch == "deeplab":
+            crop_size = 256
+        return crop_size
 
     def init_logging(self):
         # only using wandb currently
@@ -43,7 +52,12 @@ class BaseTrainer():
 
     def init_model(self):
         from models.model import SegmentationModel
-        model = SegmentationModel(opt=self.opt, known_class_list=self.known_class_list)
+        model = SegmentationModel(
+                            opt=self.opt, 
+                            known_class_list=self.known_class_list, 
+                            training_dataset=self.train_dataset, 
+                            crop_size=self.crop_size
+                            )
         load_checkpoint_if_exists(model, self.opt.save_path)
         return model
 
@@ -73,13 +87,13 @@ class BaseTrainer():
                                     only_labelled=_only_labelled,
                                     use_imagenet_norm=self.opt.use_imagenet_norm,
                                     no_colour=self.opt.no_colour,
-                                    crop_size=self.model.crop_size,
+                                    crop_size=self.crop_size,
                                     )
 
         # define collation function to implement masking if requested
         from utils.collation_utils import get_collate_fn
         if self.opt.mask_input:
-            _collate_fn = get_collate_fn(img_size=self.model.crop_size, patch_size=14, random_mask_prob=self.opt.random_mask_prob)
+            _collate_fn = get_collate_fn(img_size=self.crop_size, patch_size=14, random_mask_prob=self.opt.random_mask_prob)
         else:
             _collate_fn = None
 

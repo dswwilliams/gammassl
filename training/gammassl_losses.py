@@ -59,7 +59,7 @@ class SoftProbCrossEntropy(nn.Module):
             return xent
         
 class UniformityLoss(nn.Module):
-    def __init__(self, kernel_size, stride, rbf_t, projection_net):
+    def __init__(self, kernel_size, stride, projection_net, rbf_t=2):
         """
         Calculates the uniformity loss, which maximises the uniformity of the given features.
         TODO: cite paper
@@ -114,13 +114,12 @@ class GammaSSLLosses:
         # determine whether to include void class in loss
         ignore_index = -100 if self.opt.include_void else self.num_known_classes
 
-        self.sharpen = Sharpener(temp=opt.sharpen_temp)
+        self.sharpen = Sharpener(temperature=opt.sharpen_temp)
         self.hard_xent = nn.CrossEntropyLoss(reduction="none", ignore_index=ignore_index)
         self.soft_xent = SoftProbCrossEntropy(dim=1, reduction="none")
         self.uniformity_loss_fn = UniformityLoss(
                                     kernel_size=opt.uniformity_kernel_size,
                                     stride=opt.uniformity_stride,
-                                    rbf_t=opt.rbf_t,
                                     projection_net=projection_net,
                                     )
 
