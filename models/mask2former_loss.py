@@ -3,7 +3,6 @@
 """
 MaskFormer criterion.
 """
-import logging
 
 import torch
 import torch.nn.functional as F

@@ -6,7 +6,8 @@ from tqdm import tqdm
 import random
 import wandb
 sys.path.append("../")
-from utils.device_utils import get_lr, init_device
+from utils.device_utils import init_device
+from utils.training_metric_utils import get_lr
 from utils.disk_utils import load_checkpoint_if_exists, get_encoder_state_dict
 
 class BaseTrainer():

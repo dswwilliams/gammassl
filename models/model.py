@@ -16,9 +16,6 @@ from utils.downsampling_utils import ClassWeightedModalDownSampler, downsample_l
 class SegmentationModel(nn.Module):
     """
     class that deals with defining and updating: neural networks, prototypes and gamma 
-    
-    TODO: make sure that the methods in this class are generic to any defined model, i.e. vit or resnet
-          i.e. they call generic functions from the self.seg_net
     """
     
     def __init__(self, opt, known_class_list, training_dataset, crop_size):
@@ -37,7 +34,6 @@ class SegmentationModel(nn.Module):
         self.optimizers = self.init_optimizers()
         self.schedulers = self.init_schedulers()
 
-        # TODO
         self.batch_prototypes = None
         self.old_prototypes = None
 

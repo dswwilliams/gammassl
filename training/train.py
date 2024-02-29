@@ -17,17 +17,6 @@ def str2bool(v):
 parser = argparse.ArgumentParser()
 ### ###
 
-"""
-Notes on arguments:
-- the key training options are:
-  - model_arch
-  - use_proto_seg
-  - frozen_target
-  - mask_input
-
-TODO: this could possible be improved by consolidating some of the arguments
-
-"""
 
 
 # ======================== Training ========================
@@ -101,9 +90,7 @@ parser.add_argument('--no_colour', type=str2bool, default=False, help="if True, 
 
 
 # ======================== Validation Options ========================
-# TODO
 parser.add_argument('--output_rank_metrics', type=str2bool, default=False, help="normalise uncertainty metric by rank")
-# TODO
 parser.add_argument('--val_transforms', type=str2bool, default=False, help="whether to colour-transform val images")
 parser.add_argument('--val_batch_size', type=int, default=None)
 parser.add_argument('--val_every', type=int, default=500, help="frequency of validation w.r.t. number of training iterations")

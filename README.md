@@ -1,7 +1,7 @@
 
-Work introduced in:
+### Work presented in:
 
-“Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data”, D. Williams, D. De Martini, M. Gadd, and P. Newman, IEEE Transactions on Robotics (T-RO), 2024.
+[“Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data”, D. Williams, D. De Martini, M. Gadd, and P. Newman, IEEE Transactions on Robotics (T-RO), 2024.](https://arxiv.org/abs/2402.17653)
 ```
 @article{gammassl,
 title={{Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data}},
@@ -11,7 +11,7 @@ year={2024},
 }
 ```
 
-“Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling”, D. Williams, M. Gadd, P. Newman, and D. De Martini, IEEE International Conference on Robotics and Automation (ICRA), 2024
+[“Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling”, D. Williams, M. Gadd, P. Newman, and D. De Martini, IEEE International Conference on Robotics and Automation (ICRA), 2024](https://arxiv.org/abs/2402.17622)
 ```
 @article{maskedgammassl,
 title={{Masked $\gamma$-SSL: Learning Uncertainty Estimation via Masked Image Modeling}},
@@ -20,7 +20,6 @@ booktitle={IEEE International Conference on Robotics and Automation (ICRA)},
 year={2024},
 }
 ```
-
 
 
 ### What should this repo do?
@@ -41,12 +40,6 @@ year={2024},
 
 * Model Testing in separate repo, or the same repo?
     * It's tempting to have a separate repo, but maybe its best to have it in both
-
-
-### TODO
-* Link this repo to a forked version of the DINOv2 repo 
-    * therefore can include my changes to it, e.g. lora
-* Put up a forked version of DINOv2 repo on my github
 
 
 

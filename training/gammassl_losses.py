@@ -62,7 +62,7 @@ class UniformityLoss(nn.Module):
     def __init__(self, kernel_size, stride, projection_net, rbf_t=2):
         """
         Calculates the uniformity loss, which maximises the uniformity of the given features.
-        TODO: cite paper
+        Based on https://arxiv.org/pdf/2005.10242.pdf.
         
         Args:
             kernel_size (int): Size of the kernel used to downsample the features.
