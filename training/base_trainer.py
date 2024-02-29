@@ -63,7 +63,7 @@ class BaseTrainer():
         else:
             _only_labelled = False
 
-        dataset = _train_dataset(
+        self.train_dataset = _train_dataset(
                                     self.opt.cityscapes_dataroot, 
                                     self.opt.unlabelled_dataroot, 
                                     self.opt.no_transforms,
@@ -84,7 +84,7 @@ class BaseTrainer():
             _collate_fn = None
 
         dataloader = torch.utils.data.DataLoader(
-                                                dataset=dataset, 
+                                                dataset=self.train_dataset, 
                                                 batch_size=self.opt.batch_size, 
                                                 shuffle=True, 
                                                 num_workers=self.opt.num_workers, 
