@@ -174,8 +174,6 @@ def val_collate_data_and_cast(samples_list, mask_ratio_tuple, mask_probability, 
             upperbound += int(N * prob_max)
         for i in range(n_samples_masked, B):
             masks_list.append(torch.BoolTensor(mask_generator(0)))
-        mask_indices_list = collated_masks.flatten().nonzero().flatten()
-        masks_weight = (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks]
     else:
         B = len(samples_list)
         N = n_tokens
@@ -187,13 +185,8 @@ def val_collate_data_and_cast(samples_list, mask_ratio_tuple, mask_probability, 
 
     collated_masks = torch.stack(masks_list).flatten(1)
 
-
     # add collated_masks to collated_raw_dict
     collated_val_dict['mask'] = collated_masks
-
-    mask_indices_list = collated_masks.flatten().nonzero().flatten()
-
-    masks_weight = (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks]
 
     return collated_val_dict
 

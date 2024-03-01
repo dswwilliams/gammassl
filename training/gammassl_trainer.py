@@ -14,6 +14,7 @@ from gammassl_losses import GammaSSLLosses
 class Trainer(BaseTrainer):
     """
     Trainer class for GammaSSL.
+    Inherits from BaseTrainer and implements the train_model method.
     """    
     def __init__(self, *args, **kwargs):
         super(Trainer, self).__init__(*args, **kwargs)              # init base trainer class
@@ -122,6 +123,8 @@ class Trainer(BaseTrainer):
         Calculates losses for batch of images from unlabelled domain.
         Fills dicts (losses and metrics) with losses and metrics to monitor training.
 
+        NOTE: tA(tB(x)) = tB(tA(x)), therefore seg masks are ultimately pixel-wise aligned.
+
         Args:
             unlabelled_dict (dict): A dict containing a batch of images and crop locations from unlabelled domain
                 (imgs_t and imgs_q are the same images, but with different colour-space transformation applied).
@@ -171,4 +174,3 @@ class Trainer(BaseTrainer):
         # calculate consistency loss
         losses["loss_c"], ssl_metrics = self.losses.calculate_consistency_loss(seg_masks_t_tAB, seg_masks_q_tBA, gamma_masks_q)
         metrics.update(ssl_metrics)
-        

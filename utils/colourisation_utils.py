@@ -4,31 +4,7 @@ import numpy as np
 import kornia
 import matplotlib.pyplot as plt
 
-# def denormalise(batch, imagenet=False):
-#     if imagenet:
-#         # needs to this shape -> (height, width, channels)
-#         denorm_batch = torch.zeros_like(batch)
-#         batch = batch.detach().cpu().numpy()
-#         denorm_batch = denorm_batch.detach().cpu().numpy()
 
-#         batch = np.transpose(batch, (0, 2, 3, 1)) # (batch_idx, height, width, channels)
-#         for i in range(0,batch.shape[0]):
-#             img = batch[i,:,:,:]
-#             img = img*np.array([0.229, 0.224, 0.225])
-#             img = img + np.array([0.485, 0.456, 0.406])
-#             img = img*255.0
-#             img = np.transpose(img, (2, 0, 1)) # (channels, height, width)
-#             denorm_batch[i,:,:,:] = img
-
-#         # batch = np.transpose(batch, (0, 3, 1, 2)) # (batch_idx, height, width, channels)
-#         denorm_batch = torch.from_numpy(denorm_batch)
-#         denorm_batch = torch.clamp(denorm_batch, min=0, max=255)
-#         return denorm_batch # denorm_batch tensor has range 0 -> 255
-#     else:
-#         # [-1, 1] -> [-0.5, 0.5] -> [0, 1] -> [0,255]
-#         denorm_batch = 255*(0.5*batch + 0.5)
-#         return denorm_batch
-    
 def denormalise(batch, imagenet=False):
     if imagenet:
         # Define the normalization parameters
@@ -43,41 +19,44 @@ def denormalise(batch, imagenet=False):
         # [-1, 1] -> [-0.5, 0.5] -> [0, 1] -> [0,255]
         denorm_batch = 255 * (0.5 * batch + 0.5)
 
-    return denorm_batch
-
-    
+    return denorm_batch    
 
 
 def colorize_segmentations(trainid_img):
-    label_to_color = {
-        0: [128, 64,128],
-        1: [244, 35,232],
-        2: [ 70, 70, 70],
-        3: [102,102,156],
-        4: [190,153,153],
-        5: [153,153,153],
-        6: [250,170, 30],
-        7: (220,220,  0),
-        8: [107,142, 35],
-        9: [152,251,152] ,
-        10: [ 70,130,180],
-        11: [220, 20, 60] ,
-        12: [255,  0,  0] ,
-        13: [  0,  0,142] ,
-        14: [  0,  0, 70] ,
-        15: [  0, 60,100] ,  
-        16: [  0, 80,100] ,
-        17: [  0,  0,230] ,
-        18: [119, 11, 32] ,
-        19: [  0,  0,  0]
-        }
-    batch_size, img_height, img_width = trainid_img.shape
-    img_colour = torch.zeros(batch_size, 3, img_height, img_width).to(trainid_img.device)
+    """
+    Convert trainid_img to a color image using a predefined color map.
+    trainid_img: torch.Tensor with shape (batch_size, height, width) which contains integer class value as pixel values.
+    """
+    # init
+    label_to_color = torch.tensor([
+        [128, 64, 128],
+        [244, 35, 232],
+        [70, 70, 70],
+        [102, 102, 156],
+        [190, 153, 153],
+        [153, 153, 153],
+        [250, 170, 30],
+        [220, 220, 0],
+        [107, 142, 35],
+        [152, 251, 152],
+        [70, 130, 180],
+        [220, 20, 60],
+        [255, 0, 0],
+        [0, 0, 142],
+        [0, 0, 70],
+        [0, 60, 100],
+        [0, 80, 100],
+        [0, 0, 230],
+        [119, 11, 32],
+        [0, 0, 0]
+    ]).float().to(trainid_img.device)
     trainid_img = trainid_img.long()
-    for train_id_no in range(len(label_to_color)):
-        img_colour[:,0,:,:][torch.nonzero(trainid_img==train_id_no, as_tuple=True)] = label_to_color[train_id_no][0]
-        img_colour[:,1,:,:][torch.nonzero(trainid_img==train_id_no, as_tuple=True)] = label_to_color[train_id_no][1]
-        img_colour[:,2,:,:][torch.nonzero(trainid_img==train_id_no, as_tuple=True)] = label_to_color[train_id_no][2]
+    bs, h, w = trainid_img.shape    
+    img_colour = torch.zeros(bs, 3, h, w, device=trainid_img.device)
+    
+    # map each label to a color
+    img_colour = label_to_color[trainid_img].permute(0, 3, 1, 2)  # Permute to match [bs, 3, h, w]
+    
     return img_colour
 
 

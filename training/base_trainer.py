@@ -11,8 +11,9 @@ from utils.training_metric_utils import get_lr
 from utils.disk_utils import load_checkpoint_if_exists, get_encoder_state_dict
 
 class BaseTrainer():
-    
-    
+    """
+    Base class for training segmentation models
+    """
     def __init__(self, opt):
         self.RANDOM_SEED = 0
         self.opt = opt
