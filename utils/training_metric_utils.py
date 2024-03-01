@@ -47,55 +47,6 @@ def calculate_p_consistent_per_class(consistency_masks, segs_t, num_known_classe
     return p_consistent_per_class.cpu()
 
 
-def calculate_consistency2certainty_prob_metrics(confidence_masks, accuracy_masks):
-    """
-    - if denominator is 0 for a batch element, it shouldnt be considered in the mean across that batch
-    -> leave as NaN and perform nanmean()
-
-    confidence_masks = certainty masks
-    accuracy_masks = consistency masks    
-    """
-    accuracy_masks = accuracy_masks.float()
-    confidence_masks = confidence_masks.float()
-
-    ################################################################################################################
-    ### compute coverage ###
-    coverage = confidence_masks.mean((1,2))      # shape: [bs,]
-    pixel_accuracy = accuracy_masks.mean((1,2))
-    ################################################################################################################
-
-    ################################################################################################################
-    ### compute p_accurate_given_certain ###
-    n_accurate_and_certain = (accuracy_masks * confidence_masks).sum((1,2))
-    n_certain = (confidence_masks).sum((1,2))
-    p_accurate_given_certain = n_accurate_and_certain / n_certain   
-    # returning NaN for batch element if n_certain is 0
-    ################################################################################################################
-
-    ################################################################################################################
-    ### compute p_uncertain_given_inaccurate ###
-    n_uncertain_and_inaccurate = ((1-accuracy_masks) * (1-confidence_masks)).sum((1,2))
-    n_inaccurate = ((1-accuracy_masks)).sum((1,2))
-    n_inaccurate_or_accurate = torch.ones_like(accuracy_masks).sum((1,2))
-    p_uncertain_given_inaccurate = n_uncertain_and_inaccurate / n_inaccurate
-    # returning NaN for batch element if n_inaccurate is 0
-    ################################################################################################################
-
-    ################################################################################################################
-    ### compute combined metric ###
-    combined_prob_metric = (n_uncertain_and_inaccurate + n_accurate_and_certain) / n_inaccurate_or_accurate
-    ################################################################################################################
-
-
-    val_certainty_metrics = {}
-    val_certainty_metrics["p_accurate_given_certain"] = p_accurate_given_certain
-    val_certainty_metrics["p_uncertain_given_inaccurate"] = p_uncertain_given_inaccurate
-    val_certainty_metrics["combined_prob_metric"] = combined_prob_metric
-    val_certainty_metrics["p_certain"] = coverage
-    # val_certainty_metrics["p_accurate"] = pixel_accuracy
-    return val_certainty_metrics
-
-
 @torch.no_grad()
 def calculate_ue_training_metrics(consistency_masks, certainty_masks):
     consistency_masks = consistency_masks.bool()
@@ -172,7 +123,6 @@ def get_consistency_metrics(p_y_given_x_t, p_y_given_x_q, certainty_masks, detai
         metrics["f1_score"], metrics["acc_md"] = calculate_ue_training_metrics(consistency_masks, certainty_masks)
 
     return metrics
-
 
 
 

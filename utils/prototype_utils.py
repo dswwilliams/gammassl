@@ -90,6 +90,18 @@ def calculate_mean_prototype_sim(features, prototypes, one_hot_labels):
 
 
 def segment_via_prototypes(features, prototypes, gamma=None, output_metrics=False):
+    """
+    Assign features to semantic classes based on cosine similarity to prototypes.
+
+    Args:
+        features (torch.Tensor): Input feature maps with shape [bs, feature_length, h, w].
+        prototypes (torch.Tensor): Prototypes for known classes with shape [feature_length, num_known_classes].
+        gamma (float, optional): Confidence threshold. Default is None.
+        output_metrics (bool, optional): Whether to output additional metrics. Default is False.
+
+    Returns:
+        torch.Tensor: Segmentation masks with shape [bs, num_known_classes, h, w].
+    """
     bs, feature_length, h, w = features.shape           # shape: [bs, feature_length, h, w]
 
     # normalise features to compute cosine similarity
