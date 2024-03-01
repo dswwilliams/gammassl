@@ -48,6 +48,21 @@ class ImgColourTransform(nn.Module):
         return img.squeeze()
     
 
+def get_resize_noise(height, crop_size, noise_factor):
+    """
+    - we want to control ratio  = (height/crop_size)
+    - we want noise range: [ratio - alpha , ratio + alpha]
+    - and also ratio > 1, to prevent bad crops
+    """
+    noise = 2 * (np.random.rand() - 0.5)        # range: [-1,1]
+    ratio = (height/crop_size)        # how many times bigger is shorter side than crop_size 
+
+    alpha = (ratio - 1) / noise_factor
+    noise = ratio + noise * alpha         # range: [ratio - alpha , ratio + alpha]
+
+    return noise
+    
+
 def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
     if start_x is None:
         start_x = np.random.randint(low=0, high=(img.shape[1] - crop_size))
@@ -60,15 +75,20 @@ def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
     
     if label is not None:
         label = label[start_y:end_y, start_x:end_x] # shape: (crop_size, crop_size)
-        return crop, label
-    else:
-        return crop
+    return crop, label
 
 def get_initial_scaling_values(height, width, downsample_factor):
     scale_factor = height/960
     new_height = int(height/(downsample_factor*scale_factor))
     new_width = int(width/(downsample_factor*scale_factor))
     return new_height, new_width
+
+
+def resize_data(img, new_height, new_width, label=None):
+    img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+    if label is not None:
+        label = cv2.resize(label, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
+    return img, label
     
 
 def random_flip(img, label=None, p=0.5):
@@ -77,10 +97,8 @@ def random_flip(img, label=None, p=0.5):
         if label is not None:
             label = cv2.flip(label, 1)
 
-    if label is not None:
-        return img, label
-    else:
-        return img
+    # return img, label or img, None
+    return img, label
 
 def normalize_img(img):
     # normalize the img (with the mean and std for the pretrained ResNet):
