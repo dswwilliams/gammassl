@@ -13,37 +13,56 @@ from segmentation_models_pytorch.base import (
 sys.path.append("../")
 from models.deeplabv3_decoder import DeepLabV3PlusDecoder
 
+
+
+class DeepLabDecoder(nn.Module):
+    """
+    Pytorch module for decoder of DeepLab segmentation model.
+    """
+    def __init__(self,decoder_aspp, segmentation_head):
+        super().__init__()
+        self.decoder_aspp = decoder_aspp
+        self.segmentation_head = segmentation_head
+
+    def forward(self, shallow_features: list[torch.Tensor]) -> torch.Tensor:
+        """
+        Forward pass through the decoder.
+
+        Args:
+            shallow_features: list of shallow features from the encoder,
+                where shallow_features[-1] has shape = [batch_size, 512, (H//encoder_output_stride), (W//encoder_output_stride)]
+
+        Returns:
+            seg_masks: segmentation masks of shape = [batch_size, num_classes, (H//encoder_output_stride), (W//encoder_output_stride)]
+        """
+        deep_features = self.decoder_aspp(*shallow_features)
+        seg_masks = self.segmentation_head(deep_features)
+        return seg_masks
+
+
 class DeepLabSegNet(BaseSegNet):
-    def __init__(
-            self, 
-            device, 
-            opt, 
-            num_known_classes,      
-            ):
+    """
+    Pytorch module for DeepLab segmentation model.
+    """
+    def __init__(self, device, opt, num_known_classes,):
         super().__init__(device, opt, num_known_classes)
 
+        self.opt = opt
         self.intermediate_dim = self.opt.intermediate_dim
         self.prototype_len = self.opt.prototype_len
 
-
+        # defining encoder params
+        in_channels = 3
         encoder_name = "resnet18"
         encoder_depth = 5
         encoder_weights =  "imagenet"
         encoder_output_stride = 8
+
+        # defining decoder params
         decoder_channels = self.intermediate_dim
         decoder_atrous_rates = (12, 24, 36)
-        in_channels = 3
-        # classes = 1
-        # activation = None
-        # upsampling = 4
-        # aux_params = None
         
-        self.opt = opt
-
-
-
-        ################################################################################################
-        ### defining encoder ###
+        # defining encoder 
         self.encoder = get_encoder(
             encoder_name,
             in_channels=in_channels,
@@ -52,67 +71,44 @@ class DeepLabSegNet(BaseSegNet):
             output_stride=encoder_output_stride,
         )
 
-
-        ################################################################################################
-
-        ################################################################################################
-        ### choosing decoder ###
+        # defining decoder
         decoder_aspp = DeepLabV3PlusDecoder(
             encoder_channels=self.encoder.out_channels,
             out_channels=decoder_channels,
             atrous_rates=decoder_atrous_rates,
             output_stride=encoder_output_stride,
-        )
-
+            )
         segmentation_head = SegmentationHead(
             in_channels=decoder_aspp.out_channels,
             out_channels=num_known_classes,
             kernel_size=1,
             upsampling=1,
             )
-        
-        class Decoder(nn.Module):
-            def __init__(self,):
-                super().__init__()
-                self.decoder_aspp = decoder_aspp
-                self.segmentation_head = segmentation_head
-            def forward():
-                pass
-        
-        self.decoder = Decoder()
+        self.decoder = DeepLabDecoder(decoder_aspp=decoder_aspp, segmentation_head=segmentation_head)
 
+        # defining projection network
+        nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder.out_channels[-1]
+        from models.projection_networks import ProjectionMLP
+        self.projection_net = ProjectionMLP(
+                                input_feature_len=nonproj_len, 
+                                output_feature_len=self.prototype_len, 
+                                dropout_prob=None,
+                                )
 
-        ################################################################################################
-
-        ################################################################################################
-        ### define projection network ###
-        if self.opt.use_proto_seg:
-            nonproj_len = self.intermediate_dim if self.opt.use_deep_features else self.encoder.out_channels[-1]
-            from models.projection_networks import ProjectionMLP
-            self.projection_net = ProjectionMLP(
-                                    input_feature_len=nonproj_len, 
-                                    output_feature_len=self.prototype_len, 
-                                    dropout_prob=None,
-                                    ).to(self.device)
-        ################################################################################################
-
-        ################################################################################################
-        ### to device ###
-        self.to_device()
-        ################################################################################################
-
+        # move model to device
+        self.to(self.device)
 
     def extract_features(self, x: torch.Tensor, use_deep_features: bool = False, masks: torch.Tensor = None) -> torch.Tensor:
         """ 
-        extract features from encoder 
-        input: x.shape = (batch_size, 3, H, W)
+        Extract high-dim features describing the input image x using the encoder, and optionally the decoder.
 
-        if use_deep_features is True or self.opt.use_deep_features is True:
-        output: features.shape = [batch_size, 256, (H//4), (W//4)]
+        Args: 
+            x, image of shape = [batch_size, 3, H, W]
 
-        else:
-        output: features.shape = [batch_size, 512, (H//encoder_output_stride), (W//encoder_output_stride)]
-    
+        Returns:
+            deep_features, high-dim features of shape = [batch_size, 256, (H//4), (W//4)]
+             if use_deep_features is True or self.opt.use_deep_features is True
+             else, shallow_features, shape = [batch_size, 512, (H//encoder_output_stride), (W//encoder_output_stride)]    
         """
 
         if self.opt.train_encoder:
@@ -127,22 +123,33 @@ class DeepLabSegNet(BaseSegNet):
         else:
             return shallow_features[-1]
 
-    
-    def decode_features(self, x,):
+    def extract_proj_features(self, x: torch.Tensor, masks: torch.Tensor = None) -> torch.Tensor:
         """
-        decodes features from encoder
-        input: x.shape = [batch_size, (H//patch_size)*(W//patch_size)+1, encoder_dim]
-        """
-        return self.decoder.decoder_aspp(*x)
+        Extracts features from x, then projects them using the projection network.
 
-    def extract_proj_features(self, x, masks=None): 
-        """ extract projected features """
+        Args:
+            x: input image of shape = [batch_size, 3, H, W]
+
+        Returns:
+            proj_features: projected features of shape = [batch_size, prototype_len, (H//patch_size), (W//patch_size)]
+        """
         features = self.extract_features(x, masks=masks)
         proj_features = self.projection_net(features)
         return proj_features
     
 
-    def get_seg_masks(self, x, high_res=False, masks=None, return_mask_features=False):
+    def get_seg_masks(self, x: torch.Tensor, high_res=False, masks: torch.Tensor = None) -> torch.Tensor:
+        """
+        Get segmentation masks from the input image x.
+
+        Args:
+            x: input image of shape = [batch_size, 3, H, W]
+
+        Returns:
+            seg_masks: segmentation masks of shape = [batch_size, num_classes, H, W] if high_res is True
+                else, seg_masks.shape = [batch_size, num_classes, (H//patch_size), (W//patch_size)] if high_res is False
+
+        """
         decoder_output = self.extract_features(x, use_deep_features=True)
         masks = self.decoder.segmentation_head(decoder_output)
         if high_res:
@@ -175,7 +182,7 @@ if __name__ == "__main__":
 
     x = torch.randn(1, 3, 256, 256)
 
-    output = seg_net.extract_features(x)
+    output = seg_net.extract_features(x, use_deep_features=False)
     print(output.shape) 
 
     output = seg_net.extract_proj_features(x)

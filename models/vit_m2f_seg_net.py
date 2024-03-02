@@ -77,9 +77,9 @@ class ViT_M2F_SegNet(BaseSegNet):
                                 input_feature_len=nonproj_len, 
                                 output_feature_len=self.prototype_len, 
                                 dropout_prob=None,
-                                ).to(self.device)
+                                )
 
-        # putting model on device
+        # move model to device
         self.to(self.device)
 
 
@@ -91,9 +91,9 @@ class ViT_M2F_SegNet(BaseSegNet):
             x, image of shape = [batch_size, 3, H, W]
 
         Returns:
-            features, high-dim features of shape = [batch_size, (H//patch_size)*(W//patch_size), encoder_dim]
+            deep_features, high-dim features of shape = [batch_size, (H//patch_size)*(W//patch_size), encoder_dim]
              if use_deep_features is True or self.opt.use_deep_features is True
-             else, shape = [batch_size, (H//patch_size)*(W//patch_size), intermediate_dim]    
+             else, shallow_features, shape = [batch_size, (H//patch_size)*(W//patch_size), intermediate_dim]    
         """
         H, W = x.shape[-2:]
 

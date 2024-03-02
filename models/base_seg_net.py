@@ -25,12 +25,6 @@ class BaseSegNet(nn.Module):
         self.encoder = None
         self.decoder = None
         ################################################################################################
-
-    def to_device(self):
-        if self.encoder is not None:
-            self.encoder = self.encoder.to(self.device)
-        if self.decoder is not None:
-            self.decoder = self.decoder.to(self.device)
         
 
     def extract_features(self, x, use_deep_features=False):
