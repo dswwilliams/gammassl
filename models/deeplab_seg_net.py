@@ -1,11 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
-import numpy as np
-from typing import Optional
 import sys
-import copy
 sys.path.append("../")
 from models.base_seg_net import BaseSegNet
 from segmentation_models_pytorch.encoders import get_encoder
