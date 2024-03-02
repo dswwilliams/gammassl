@@ -81,8 +81,7 @@ def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=No
     pos_embed = interpolate_pos_encoding(pos_embed, torch.randn(1, 257, dino_repo.embed_dim), 224, 224, 14)
     hub_state_dict["pos_embed"] = pos_embed
 
-
-    # refining keys to work with model weights from dino repo (see docstring)
+    # refining keys to align model weights from dino repo with this repo
     new_hub_state_dict = {}
     for key in hub_state_dict:
         if "blocks" in key:
