@@ -7,6 +7,16 @@ import torch.nn as nn
 
 
 def interpolate_pos_encoding(pos_embed, x, w, h, patch_size):
+    """
+    Interpolate position encoding, pos_embed, to the required size.
+
+    Args:
+        pos_embed: position encoding to interpolate
+        x: dummy input tensor of initial required size
+        w: desired width of the input tensor
+        h: desired height of the input tensor
+        patch_size: desired patch size
+    """
     previous_dtype = x.dtype
     npatch = x.shape[1] - 1
     N = pos_embed.shape[1] - 1
@@ -34,6 +44,18 @@ def interpolate_pos_encoding(pos_embed, x, w, h, patch_size):
 
 
 def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=None, vit_size="small"):
+    """
+    Returns a Vision Transformer model from the DINO repository of the specified size.
+    Calls into the relevant dino repository to get the model (i.e. https://github.com/facebookresearch/dinov2)
+
+    Args:
+        dino_path: path to the model weights
+        lora_rank: rank of the LoRA approximation
+        vit_size: size of the Vision Transformer model
+
+    Returns:
+        dino_repo: Vision Transformer model from the DINO repository
+    """
     sys.path.append("../dinov2")
     if vit_size == "small":
         from dinov2.models.vision_transformer import vit_small
@@ -60,7 +82,7 @@ def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=No
     hub_state_dict["pos_embed"] = pos_embed
 
 
-    # refining keys
+    # refining keys to work with model weights from dino repo (see docstring)
     new_hub_state_dict = {}
     for key in hub_state_dict:
         if "blocks" in key:
@@ -74,7 +96,7 @@ def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=No
 
 
     # loading hub state dict to repo vit
-    a = dino_repo.load_state_dict(new_hub_state_dict, strict=False)
+    dino_repo.load_state_dict(new_hub_state_dict, strict=False)
     return dino_repo
 
 
@@ -83,5 +105,13 @@ def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=No
 if __name__ == "__main__":
     dino_repo = get_repo_dino()
     x = torch.randn(1, 3, 224, 224)
-    y1 = dino_repo.forward_features(x)
+    output = dino_repo.forward_features(x)
+
+    print(dino_repo)
+
+    print(output.keys())
+    print(output["x_norm_clstoken"].shape)
+    print(output["x_norm_patchtokens"].shape)
+    print(output["x_prenorm"].shape)
+
 
