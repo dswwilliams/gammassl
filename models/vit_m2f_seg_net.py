@@ -31,13 +31,10 @@ class ViT_M2F_SegNet(BaseSegNet):
     """
     Pytorch module for a segmentation network that uses Vision Transformer (ViT) as the encoder and Mask2Former as the decoder.
     Based on: https://github.com/facebookresearch/Mask2Former
+    Inherits from BaseSegNet.
     """
     def __init__(self, device, opt, num_known_classes):
         super().__init__(device, opt, num_known_classes)
-        self.opt = opt
-
-        self.intermediate_dim = self.opt.intermediate_dim
-        self.prototype_len = self.opt.prototype_len
 
         # defining encoder
         vit_dino = get_repo_dino(dino_path=self.opt.dino_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)

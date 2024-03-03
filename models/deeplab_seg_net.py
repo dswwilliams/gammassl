@@ -43,13 +43,10 @@ class DeepLabDecoder(nn.Module):
 class DeepLabSegNet(BaseSegNet):
     """
     Pytorch module for DeepLab segmentation model.
+    Inherits from BaseSegNet.
     """
     def __init__(self, device, opt, num_known_classes,):
         super().__init__(device, opt, num_known_classes)
-
-        self.opt = opt
-        self.intermediate_dim = self.opt.intermediate_dim
-        self.prototype_len = self.opt.prototype_len
 
         # defining encoder params
         in_channels = 3

@@ -2,7 +2,17 @@ import torch.nn as nn
 
 
 class ProjectionMLP(nn.Module):
-    def __init__(self, input_feature_len = 128, output_feature_len=None, dropout_prob=None):
+    """
+    Pytorch module for projection multi-layer perceptron.
+    Projects input features into a different feature space on a per-pixel basis.
+    """
+    def __init__(self, input_feature_len=128, output_feature_len=None, dropout_prob=None):
+        """ 
+        Args:
+            input_feature_len (int): Dimensionality of input features.
+            output_feature_len (int): Dimensionality of output features.
+            dropout_prob (float): Dropout probability. Default: None.
+        """        
         super(ProjectionMLP, self).__init__()
 
         if output_feature_len is None:
@@ -23,6 +33,13 @@ class ProjectionMLP(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
+        """
+        Args:
+            x: input features of shape = [batch_size, input_feature_len, H, W]
+
+        Returns:
+            projected_features: Projected features of shape = [batch_size, output_feature_len, H, W]
+        """
         bs, feature_len, h, w = x.shape
         x = x.permute(0,2,3,1)
         x = x.reshape(bs*h*w, feature_len)

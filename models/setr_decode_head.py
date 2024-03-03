@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 
 class ConvModule(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, norm=nn.BatchNorm2d, act=nn.ReLU):
@@ -29,90 +28,11 @@ class Upsample(nn.Module):
         return nn.functional.interpolate(x, scale_factor=self.scale_factor, mode=self.mode, align_corners=self.align_corners)
 
 
-class SETRUPHead(nn.Module):
-    """Naive upsampling head and Progressive upsampling head of SETR.
-
-    Naive or PUP head of `SETR  <https://arxiv.org/pdf/2012.15840.pdf>`_.
-
-    Args:
-        norm_layer (dict): Config dict for input normalization.
-            Default: norm_layer=dict(type='LN', eps=1e-6, requires_grad=True).
-        num_convs (int): Number of decoder convolutions. Default: 1.
-        up_scale (int): The scale factor of interpolate. Default:4.
-        kernel_size (int): The kernel size of convolution when decoding
-            feature information from backbone. Default: 3.
-        init_cfg (dict | list[dict] | None): Initialization config dict.
-            Default: dict(
-                     type='Constant', val=1.0, bias=0, layer='LayerNorm').
-    """
-
-    def __init__(self,
-                 total_upsample_factor=14,
-                 kernel_size=3,
-                 in_channels=256,
-                 out_channels=256,
-                 patch_size=None,
-                 round_down_spatial_dims=True,
-                 ):
-
-        assert kernel_size in [1, 3], 'kernel_size must be 1 or 3.'
-
-        super(SETRUPHead, self).__init__()
-
-        self.up_convs = nn.ModuleList()
-        self.align_corners = False
-        in_channels = in_channels
-        out_channels = out_channels
-        self.patch_size = patch_size
-
-        default_up_scale = 2
-
-
-        # min number of times to double spatial dims (another one would overshoot)
-        min_num_ups = int(math.log2(total_upsample_factor) // math.log2(default_up_scale))
-
-
-        scale_factors = min_num_ups * [2]
-        if not round_down_spatial_dims:
-            final_scale_factor = total_upsample_factor / (2 ** min_num_ups)
-            scale_factors.append(final_scale_factor)
-
-
-        for i in range(len(scale_factors)):
-            self.up_convs.append(
-                nn.Sequential(
-                    # bundles conv norm activation
-                    ConvModule(
-                        in_channels=in_channels,
-                        out_channels=out_channels,
-                        kernel_size=kernel_size,
-                        stride=1,
-                        padding=int(kernel_size - 1) // 2,
-                        ),
-                    Upsample(
-                        scale_factor=scale_factors[i],
-                        mode='bilinear',
-                        align_corners=self.align_corners)))
-            in_channels = out_channels
-
-
-    def forward(self, x):
-        for up_conv in self.up_convs:
-            x = up_conv(x)
-        return x
-
-    def forward_features(self, x):
-        outs = []
-        for up_conv in self.up_convs:
-            x = up_conv(x)
-            outs.append(x)
-        return outs
-
 
 class SETRUPHead_M2F(nn.Module):
-    """Naive upsampling head and Progressive upsampling head of SETR.
-
-    Naive or PUP head of `SETR  <https://arxiv.org/pdf/2012.15840.pdf>`_.
+    """
+    Naive upsampling head and Progressive upsampling head of SETR.
+    (See https://arxiv.org/pdf/2012.15840.pdf)
 
     Args:
         norm_layer (dict): Config dict for input normalization.
@@ -132,7 +52,6 @@ class SETRUPHead_M2F(nn.Module):
                  in_channels=384,
                  out_channels=256,
                  patch_size=None,
-                 round_down_spatial_dims=True,
                  ):
 
         assert kernel_size in [1, 3], 'kernel_size must be 1 or 3.'
@@ -145,7 +64,6 @@ class SETRUPHead_M2F(nn.Module):
         out_channels = out_channels
         self.patch_size = patch_size
 
-        default_up_scale = 2
 
         downsample_scales = []
         upsample_scales = []
