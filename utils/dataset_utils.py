@@ -1,13 +1,15 @@
 import torch
 import numpy as np    
 import cv2
-
 import torch.nn as nn
 import kornia
 import random
 
 
 class ImgColourTransform(nn.Module):
+    """
+    Class that applies a sequence of random colour transforms to an image.
+    """
     def __init__(self, n_seq_transforms, no_colour=False):
         super(ImgColourTransform, self).__init__()
         self.k = n_seq_transforms
@@ -25,6 +27,7 @@ class ImgColourTransform(nn.Module):
         channel_shuffle = kornia.augmentation.RandomChannelShuffle(p=1)
         self.jitter = kornia.augmentation.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3, p=1.)
 
+        # option to skip colour transforms
         self.no_colour = no_colour
 
         if self.no_colour:
@@ -36,10 +39,9 @@ class ImgColourTransform(nn.Module):
     def forward(self, img):
         # choose transforms from list
         transforms = random.sample(self.transform_list, k=self.k)
-        if self.no_colour:
-            pass
-        else:
+        if not self.no_colour:
             transforms.append(self.jitter)
+
         # img needs to be in range: [0,1]
         if (img > 2).any():
             img = img/255
@@ -64,6 +66,10 @@ def get_resize_noise(height, crop_size, noise_factor):
     
 
 def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
+    """
+    Applies a random crop to the image and label (if provided).
+    The size of the crop is defined by crop_size, and the starting position is randomly chosen.
+    """
     if start_x is None:
         start_x = np.random.randint(low=0, high=(img.shape[1] - crop_size))
     end_x = start_x + crop_size
@@ -78,6 +84,10 @@ def get_random_crop(img, label=None, crop_size=256, start_x=None, start_y=None):
     return crop, label
 
 def get_initial_scaling_values(height, width, downsample_factor):
+    """
+    Returns dimensions for imgs after initial scaling.
+    Applied to all imgs in Dataset classes.
+    """
     scale_factor = height/960
     new_height = int(height/(downsample_factor*scale_factor))
     new_width = int(width/(downsample_factor*scale_factor))
@@ -85,6 +95,10 @@ def get_initial_scaling_values(height, width, downsample_factor):
 
 
 def resize_data(img, new_height, new_width, label=None):
+    """
+    Applies resizing to the image and label (if provided).
+    Based on the new_height and new_width.
+    """
     img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
     if label is not None:
         label = cv2.resize(label, (new_width, new_height), interpolation=cv2.INTER_NEAREST)
@@ -92,6 +106,10 @@ def resize_data(img, new_height, new_width, label=None):
     
 
 def random_flip(img, label=None, p=0.5):
+    """
+    Applies a random flip to the image and label (if provided).
+    The flip is applied with probability p.
+    """
     if np.random.rand() < p:
         img = cv2.flip(img, 1)
         if label is not None:
@@ -101,6 +119,9 @@ def random_flip(img, label=None, p=0.5):
     return img, label
 
 def normalize_img(img):
+    """
+    Normalizes the image based on ImageNet statistics.
+    """
     # normalize the img (with the mean and std for the pretrained ResNet):
     if (img > 2).any():
         img = img/255.0
@@ -111,6 +132,9 @@ def normalize_img(img):
     return img
 
 def normalize_img_tensor(img, imagenet=False):
+    """
+    Normalizes an image tensor based on ImageNet statistics or to [-1, 1].
+    """
     if imagenet:
         # normalize the img (with the mean and std for the pretrained ResNet):
         if (img > 2).any():
@@ -127,27 +151,11 @@ def normalize_img_tensor(img, imagenet=False):
         img = img.float()
     return img
 
-def get_random_crop_from_centre(img, label=None, crop_size=256, crop_centre=None):
-    if crop_centre is None:
-        start_x = np.random.randint(low=0, high=(img.shape[1] - crop_size))
-        start_y = np.random.randint(low=0, high=(img.shape[0] - crop_size))
-
-    else:
-        start_x = int(crop_centre[0] - np.ceil(crop_size//2))
-        start_y = int(crop_centre[1] - np.ceil(crop_size//2))
-
-    end_x = start_x + crop_size
-    end_y = start_y + crop_size
-
-    crop = img[start_y:end_y, start_x:end_x] # shape: (crop_size, crop_size, 3)
-    
-    if label is not None:
-        label = label[start_y:end_y, start_x:end_x] # shape: (crop_size, crop_size)
-        return crop, label
-    else:
-        return crop
-
 def central_crop_img(img, output_shape, label=None):
+    """
+    Applies a central crop to the image and label (if provided).
+    The size of the central crop is defined by output_shape.
+    """
     h, w, _ = img.shape
     new_h, new_w = output_shape
     h_start = int((h - new_h)/2)
@@ -159,9 +167,9 @@ def central_crop_img(img, output_shape, label=None):
 
 def get_img_size_from_aspect_ratio(aspect_ratio, patch_size=None):
     """
-    aspect_ratio = (H,W) or is proportional to this
-    - preprocessing of imgs is a resize to the right scale (adjusting for patch size and keeping aspect ratio)
-    - then if required, a crop such that width is also divisible by patch size
+    Determines the dimensions the image should be resized to and cropped to based on the aspect ratio.
+    If patch_size is not None, the width is set to be divisible by 2*patch_size.
+    This is required for the ViT-type encoders.    
     """
     if patch_size is None:
         # now 2*patch_size and therefore patch size has no effect

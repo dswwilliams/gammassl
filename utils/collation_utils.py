@@ -5,6 +5,20 @@ import math
 import numpy as np
 
 class MaskingGenerator:
+    """
+    Class to generate masks for the masking task.
+
+    Args:
+        input_size: tuple of (h,w) of the input image
+        num_masking_patches: number of patches to mask
+        min_num_patches: minimum number of patches to mask
+        max_num_patches: maximum number of patches to mask
+        min_aspect: minimum aspect ratio of the patches
+        max_aspect: maximum aspect ratio of the patches
+
+    Returns:
+        mask: tensor of shape (h,w) with 1s at the locations to be masked
+    """
     def __init__(
         self,
         input_size,
@@ -134,7 +148,6 @@ def collate_data_and_cast(samples_list, mask_ratio_tuple, mask_probability, dtyp
     random.shuffle(masks_list)
 
     collated_masks = torch.stack(masks_list).flatten(1)
-
 
     # add collated_masks to collated_raw_dict
     collated_raw_dict['mask'] = collated_masks

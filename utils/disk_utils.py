@@ -1,6 +1,9 @@
 import torch
 
 def load_model_state(seg_net, checkpoint):
+    """
+    Loads model weights into encoder and decoder.
+    """
     keys = seg_net.backbone.load_state_dict(checkpoint['encoder'], strict=False)
 
     if len(keys.missing_keys) > 0:
@@ -16,6 +19,9 @@ def load_model_state(seg_net, checkpoint):
 
 
 def load_checkpoint_if_exists(model, save_path):
+    """
+    If the save_path exists, load the model state from the checkpoint.
+    """
     if save_path:
         try:
             checkpoint = torch.load(save_path, map_location=model.device)
@@ -25,6 +31,10 @@ def load_checkpoint_if_exists(model, save_path):
 
 
 def get_encoder_state_dict(model):
+    """
+    Returns the state dictionary of the encoder.
+    Accounts for the use of LoRA.
+    """
     if model.seg_net.encoder.lora_rank is not None:
         import loralib as lora
         return lora.lora_state_dict(model.seg_net.encoder)

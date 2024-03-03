@@ -60,6 +60,9 @@ class ClassWeightedModalDownSampler(torch.nn.Module):
     
 
 def downsample_labels(features, labels, downsampler):
+    """
+    Downsamples labels to the spatial dimensions of the features.
+    """
     feature_spatial_dim = features.shape[-1]
     labels_spatial_dim = labels.shape[-1]
     new_labels_spatial_dim = int(np.ceil(labels_spatial_dim/feature_spatial_dim) * feature_spatial_dim)

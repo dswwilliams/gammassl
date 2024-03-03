@@ -396,7 +396,6 @@ class SegmentationModel(nn.Module):
 
                 prototypes_sum += prototypes
 
-
             prototypes = F.normalize(prototypes_sum, dim=0, p=2)          # shape: [feature_length, num_known_classes]
 
             self.dataset_prototypes = prototypes

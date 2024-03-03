@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 
 def denormalise(batch, imagenet=False):
+    """ Returns img batch in the range [0, 255] from normalised batch """
     if imagenet:
         # Define the normalization parameters
         mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(batch.device)
@@ -18,7 +19,6 @@ def denormalise(batch, imagenet=False):
     else:
         # [-1, 1] -> [-0.5, 0.5] -> [0, 1] -> [0,255]
         denorm_batch = 255 * (0.5 * batch + 0.5)
-
     return denorm_batch    
 
 
@@ -61,23 +61,42 @@ def colorize_segmentations(trainid_img):
 
 
 def make_overlay(imgs, imagenet):
+    """ Denormalise batch, then convert to 3-channel grayscale img batch. """
     imgs = denormalise(imgs, imagenet)/255
     overlays = kornia.color.rgb_to_grayscale(imgs)
     overlays = torch.cat((overlays, overlays, overlays), dim=1)
     return overlays
 
 
-def get_colourmapped_imgs(grayscale_imgs, cmap=plt.get_cmap('jet')):
+def get_colourmapped_imgs(grayscale_imgs, cmap=plt.get_cmap("jet")):
+    """
+    Get imgs mapped to colourmap using matplotlib cmap from grayscale image.
+
+    Args:
+        grayscale_imgs: tensor of shape (bs, h, w)
+        cmap: matplotlib cmap
+
+    Returns:
+        colourmapped_imgs: tensor of shape (bs, 3, h, w)
+    """
     colourmapped_imgs = torch.zeros(grayscale_imgs.shape[0], 3, grayscale_imgs.shape[1], grayscale_imgs.shape[2])
     for batch_no in range(grayscale_imgs.shape[0]):
-        colourmapped_imgs[batch_no,:,:,:] = torch.from_numpy(np.delete(cmap(grayscale_imgs[batch_no,:,:].cpu().detach().numpy()), 3, 2)).permute(2,0,1)
+        cmap_img = np.delete(cmap(grayscale_imgs[batch_no,:,:].cpu().detach().numpy()), 3, 2)
+        colourmapped_imgs[batch_no,:,:,:] = torch.from_numpy(cmap_img).permute(2,0,1)
     return colourmapped_imgs
 
 
 def convert_to_vis_seg_masks(seg_masks, overlay=None, interpolation_mode=None, output_size=None):
+    """
+    Convert seg_masks to visualisation-ready images.
+    Returns both the colourmapped seg_masks and the colourmapped probability maps.
+    """
+
+    # check if seg_masks have been softmax-ed
     if (seg_masks.sum(1).mean() != 1):
         seg_masks = torch.softmax(seg_masks, dim=1)
 
+    # interpolate to output_size
     if interpolation_mode == "nearest":
         seg_masks = F.interpolate(seg_masks, size=(output_size[0], output_size[1]), mode="nearest")
     elif interpolation_mode == "bilinear":
@@ -85,11 +104,13 @@ def convert_to_vis_seg_masks(seg_masks, overlay=None, interpolation_mode=None, o
     
     vis_ms, vis_seg = torch.max(seg_masks, dim=1)     # shapes: [1, h, w], [1, h, w]
 
+    # calculate the colourmapped seg masks
     if overlay is not None:
         vis_seg = 0.5*overlay + 0.5*colorize_segmentations(vis_seg.long().squeeze(1).cpu())/255
     else:
         vis_seg = colorize_segmentations(vis_seg.long().squeeze(1).cpu())/255
-    
+
+    # calculate the colourmapped probability maps
     if overlay is not None:
         vis_ms = 0.5*overlay + 0.5*get_colourmapped_imgs((1-vis_ms).cpu().squeeze(1).cpu(), cmap=plt.get_cmap("viridis"))
     else:

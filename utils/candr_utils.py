@@ -3,9 +3,19 @@ import torch
 from kornia.geometry.transform import crop_by_boxes
 
 
-
-
 def get_random_crop_boxes(input_size, min_crop_ratio, max_crop_ratio):
+    """
+    Outputs tensor that defines the corners of a box, used to crop an image.
+    Size of the crop box is randomly chosen in the bounds defined by min_crop_ratio and max_crop_ratio.
+
+    Args:
+        input_size: tuple of (h,w) of the input image
+        min_crop_ratio: minimum ratio of the input_size to crop
+        max_crop_ratio: maximum ratio of the input_size to crop
+
+    Returns:    
+        box: tensor of shape (4,2), where each row is a corner of the box
+    """
     h,w = input_size
     min_input_size = np.minimum(h,w)
     if (max_crop_ratio == 1):
@@ -24,6 +34,17 @@ def get_random_crop_boxes(input_size, min_crop_ratio, max_crop_ratio):
 
 
 def crop_by_box_and_resize(imgs, crop_boxes, mode="bilinear"):
+    """
+    Crop images using crop_boxes and resize them to the same size as crop_boxes.
+
+    Args:
+        imgs: tensor of shape (bs, 3, H, W)
+        crop_boxes: tensor of shape (bs, 4, 2)
+        mode: interpolation mode for resizing
+
+    Returns:
+        crops: tensor of shape (bs, 3, H, W)
+    """
     bs,_, H, W = imgs.shape
     # crop is resized to same size as imgs
     dst_boxes = torch.tensor([[0,0], [W-1, 0], [W-1, H-1], [0, H-1]]).unsqueeze(0).expand(bs,-1,-1).to(imgs.device)
