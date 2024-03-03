@@ -15,7 +15,7 @@ from utils.downsampling_utils import ClassWeightedModalDownSampler, downsample_l
 
 class SegmentationModel(nn.Module):
     """
-    class that deals with defining and updating: neural networks, prototypes and gamma 
+    Superclass for seg_nets, implements methods required for GammaSSL-style training.
     """
     
     def __init__(self, opt, known_class_list, training_dataset, crop_size):
@@ -38,6 +38,7 @@ class SegmentationModel(nn.Module):
         self.old_prototypes = None
 
     def init_seg_net(self):
+        """ Initialise segmentation network and load checkpoint if it exists. """
         # determine model architecture
         if self.opt.model_arch == "vit_m2f":
             from models.vit_m2f_seg_net import ViT_M2F_SegNet as SegNet
@@ -61,6 +62,7 @@ class SegmentationModel(nn.Module):
         return seg_net, patch_size
     
     def init_target_seg_net(self):
+        """ Initialise seg net for target branch if required. """
         if self.opt.frozen_target:
             target_seg_net = copy.deepcopy(self.seg_net).to(self.device)
             
@@ -71,11 +73,13 @@ class SegmentationModel(nn.Module):
             return target_seg_net
         else:
             return None
-    
+
     def init_gamma(self):
+        """ Initialise gamma threshold before calculating it. """
         return torch.zeros(1, dtype=torch.float32).to(self.device)
-    
+
     def init_dataset_prototypes(self):
+        """ Load dataset prototypes if they exist. """
         if self.opt.prototypes_path is not None:
             print("loading prototypes from ->", self.opt.prototypes_path)
             if self.opt.prototypes_path[-4:] == ".pkl":
@@ -88,6 +92,7 @@ class SegmentationModel(nn.Module):
             self.dataset_prototypes = None
 
     def init_prototype_dataloaders(self, training_dataset):
+        """ Initialise dataloader used to calculate prototypes during training. """
         self.train_proto_dataset = copy.deepcopy(training_dataset)
         self.train_proto_dataset.only_labelled = True
         self.train_proto_dataset.no_appearance_transform = True
@@ -103,6 +108,7 @@ class SegmentationModel(nn.Module):
         self.train_proto_iterator = iter(self.train_proto_dataloader)
 
     def init_optimizers(self):
+        """ Initialise optimizers for each model part. """
         _optimizer = torch.optim.AdamW
         encoder_lr = self.opt.lr_encoder if self.opt.lr_encoder is not None else self.opt.lr
 
@@ -147,6 +153,7 @@ class SegmentationModel(nn.Module):
 
 
     def init_schedulers(self):
+        """ Initialise learning rate schedulers. """
         # setup learning rate scheduling
         schedulers = {}
         if self.opt.lr_policy == None:
@@ -180,6 +187,9 @@ class SegmentationModel(nn.Module):
 
     def get_seg_masks(self, imgs, high_res=False, masks=None, return_mask_features=False, branch=None):
         """
+        Get segmentation masks from the input images, imgs.
+        Determines the method based on branch arg and training options.
+
         Options:
         - branch = "query" and use_proto_seg = True
         - branch = "query" and use_proto_seg = False
@@ -201,7 +211,16 @@ class SegmentationModel(nn.Module):
 
     def get_val_seg_masks(self, imgs):
         """
-        - want to validate both query and target branches
+        Get segmentation masks and uncertainty estimates from query and target branches for validation.
+
+        Args:
+            imgs: input images of shape [batch_size, 3, H, W]
+
+        Returns:
+            dict: {"query": query, "target": target}
+                where query and target are dicts containing:
+                    segs: segmentation masks of shape [batch_size, H, W]
+                    uncertainty_maps: uncertainty maps of shape [batch_size, H, W]
         """
         if self.opt.use_proto_seg:
             seg_masks_K_q = self.proto_segment_imgs(imgs, use_dataset_prototypes=True)
@@ -221,11 +240,27 @@ class SegmentationModel(nn.Module):
         return {"query":query, "target":target}
         
     def proto_segment_features(self, features, img_spatial_dims=None, use_dataset_prototypes=False, include_void=False):
+        """
+        Get segmentation masks from input features by calculating similarity w.r.t. class prototypes.
+
+        Args:
+            features: input features of shape [batch_size, feature_length, H, W]
+            img_spatial_dims: spatial dimensions of input images
+            use_dataset_prototypes: if True, use dataset prototypes
+                i.e. those calculated from entire dataset
+            include_void: if True, use gamma to get p(unknown)
+
+        Returns:
+            seg_masks: segmentation masks of shape [batch_size, num_classes, H, W]
+        """
+
+        # device between prototypes calculated from batch or entire dataset
         if use_dataset_prototypes:
             prototypes = self.dataset_prototypes
         else:
             prototypes = self.batch_prototypes
         
+        # get projected features
         proj_features = self.seg_net.projection_net(features)
 
         if include_void:
@@ -233,43 +268,45 @@ class SegmentationModel(nn.Module):
         else:
             _gamma = None
 
-        seg_masks_q_tB = segment_via_prototypes(
-                                            proj_features,
-                                            prototypes.detach(),         # NB: to prevent backprop through them for this task
-                                            gamma=_gamma,
-                                            )
+        # calculate segmentation masks from projected features and prototypes
+        seg_masks = segment_via_prototypes(
+                                    proj_features,
+                                    prototypes.detach(),         # NOTE: to prevent backprop
+                                    gamma=_gamma,
+                                    )
         if img_spatial_dims is not None:
             H,W = img_spatial_dims
-            seg_masks_q_tB = F.interpolate(seg_masks_q_tB, size=(H,W), mode="bilinear", align_corners=True)
-        return seg_masks_q_tB
+            seg_masks = F.interpolate(seg_masks, size=(H,W), mode="bilinear", align_corners=True)
+        return seg_masks
 
-    def proto_segment_imgs(self, imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=None):
-        features = self.seg_net.extract_proj_features(imgs, masks=masks)
+    def proto_segment_imgs(self, imgs, use_dataset_prototypes=False, include_void=False, masks=None):
+        """
+        Calculate segmentation masks from input images by extracting features, then using prototypes.
 
-        if use_dataset_prototypes:
-            prototypes = self.dataset_prototypes
-        else:
-            prototypes = self.batch_prototypes
-        H,W = imgs.shape[2:]
+        Args:
+            imgs: input images of shape [batch_size, 3, H, W]
+            use_dataset_prototypes: if True, use dataset prototypes
+                i.e. those calculated from entire dataset
+            include_void: if True, use gamma to get p(unknown)
 
-        if include_void:
-            gamma_input = self.gamma
-        else:
-            gamma_input = None
-        # NB: detach prototypes to prevent backprop through them for this task
-        seg_masks_q_tB, mean_sim_to_NNprototype_q = segment_via_prototypes(
-                                                                        features, 
-                                                                        prototypes.detach(), 
-                                                                        gamma=gamma_input,
-                                                                        output_metrics=output_spread,
-                                                                        )
-        seg_masks_q_tB = F.interpolate(seg_masks_q_tB, size=(H,W), mode="bilinear", align_corners=True)
-        if output_spread:
-            return seg_masks_q_tB, mean_sim_to_NNprototype_q
-        else:
-            return seg_masks_q_tB
-        
-    def get_next_proto_batch(self, data_iterator, data_loader):
+        Returns:
+            seg_masks: segmentation masks of shape [batch_size, num_classes, H, W]
+        """
+        features = self.seg_net.extract_features(imgs, masks=masks)
+
+        seg_masks = self.proto_segment_features(
+                        features, 
+                        img_spatial_dims=imgs.shape[2:], 
+                        use_dataset_prototypes=use_dataset_prototypes, 
+                        include_void=include_void)
+        return seg_masks
+    
+    @staticmethod
+    def get_next_proto_batch(data_iterator, data_loader):
+        """
+        Returns next batch of labelled data to calculate prototypes.
+        Also returns updated data_iterator if it runs out of data.
+        """
         try:
             data_dict, _ = next(data_iterator)
         except StopIteration:
@@ -284,7 +321,10 @@ class SegmentationModel(nn.Module):
     
 
     def calculate_batch_prototypes(self):
-        """ Calculate prototypes from batch of labelled images """
+        """
+        Returns prototypes calculated from the current batch of labelled data.
+        Batch of labelled data is obtained from the prototype dataloader.
+        """
 
         # reading in data from dedicated dataloader for prototypes
         labelled_dict, self.train_proto_iterator = self.get_next_proto_batch(self.train_proto_iterator, self.train_proto_dataloader)
@@ -292,6 +332,7 @@ class SegmentationModel(nn.Module):
         labels = to_device(labelled_dict["label"], self.device)
         labelled_crop_boxes_A = to_device(labelled_dict["box_A"], self.device)
         
+        # transform with crop-and-resize as per unlabelled training
         labelled_imgs_A = crop_by_box_and_resize(labelled_imgs, labelled_crop_boxes_A)
         labels_A = crop_by_box_and_resize(labels.unsqueeze(1).float(), labelled_crop_boxes_A, mode="nearest").squeeze(1).long()
 
@@ -320,6 +361,10 @@ class SegmentationModel(nn.Module):
     
     @torch.no_grad()
     def calculate_dataset_prototypes(self):
+        """
+        Calculate prototypes from entire dataset of labelled data.
+        Batches of labelled data are obtained from the prototype dataloader.
+        """
         if self.opt.prototypes_path is None:
             """ Calculate prototype from entire dataset """
             dataloader = torch.utils.data.DataLoader(
@@ -340,7 +385,11 @@ class SegmentationModel(nn.Module):
                 labelled_features = self.seg_net.extract_proj_features(labelled_imgs)
 
                 # downsample labels to match feature spatial dimensions
-                low_res_labels = downsample_labels(features=labelled_features, labels=labels, downsampler=self.class_weighted_modal_downsampler)
+                low_res_labels = downsample_labels(
+                                    features=labelled_features, 
+                                    labels=labels, 
+                                    downsampler=self.class_weighted_modal_downsampler,
+                                    )
 
                 # calculate prototypes
                 prototypes = extract_prototypes(labelled_features, low_res_labels, output_metrics=False)
@@ -354,12 +403,13 @@ class SegmentationModel(nn.Module):
             return self.dataset_prototypes
         else:
             return None
-        
+
     @torch.no_grad()
     def update_gamma(self, seg_masks_q, seg_masks_t):
         """
-        Calculate confidence threshold gamma, such that:
-            the number of consistent elements between seg_masks_q and seg_masks_t is equal to the number of certain elements of seg_masks_q
+        Calculates and updates confidence threshold self.gamma, such that:
+            the number of consistent elements between seg_masks_q and seg_masks_t 
+            is equal to the number of certain elements of seg_masks_q
         """
 
         segs_q, segs_t = seg_masks_q.argmax(1), seg_masks_t.argmax(1)
@@ -378,5 +428,3 @@ class SegmentationModel(nn.Module):
 
         gamma = gamma * torch.ones(1, device=self.device).float()
         self.gamma = gamma
-
-
