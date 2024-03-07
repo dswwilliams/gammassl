@@ -100,7 +100,7 @@ parser.add_argument('--n_val_segs', type=int, default=4, help="number of qualita
 parser.add_argument("--max_uncertainty", type=float, default=1, help="upperbound for uncertainty thresholds")
 parser.add_argument("--threshold_type", type=str, default="linear", help="how thresholds are distributed: linear or log")
 parser.add_argument("--num_thresholds", type=int, default=500, help="number of thresholds used in validation")
-
+parser.add_argument("--uncertainty_metric", type=str, default="max_softmax", help="metric used to calculate uncertainty")
 
 # ======================== Logging, Loading and Saving ========================
 parser.add_argument('--use_wandb', type=str2bool, default=True, help="whether to use wandb for logging, else use visdom")
@@ -112,6 +112,7 @@ parser.add_argument('--network_destination', type=str, default=None, help="path 
 parser.add_argument('--save_path', type=str,  default=None, help="path from which to load saved model")
 parser.add_argument('--prototypes_path', type=str,  default=None, help="path from which to load saved prototypes")
 parser.add_argument('--dino_path', type=str, default="/Users/dw/code/pytorch/gammassl/models/dinov2.pth", help="path to dino model weights")
+parser.add_argument('--dino_repo_path', type=str, default="../dinov2", help="path to dino repo")
 parser.add_argument('--frozen_target_save_path', type=str, default=None)
 
 

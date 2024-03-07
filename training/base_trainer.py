@@ -66,13 +66,9 @@ class BaseTrainer():
     
     def init_training_dataloader(self):
         
-        ### setup training dataset ###
         # labelled cityscapes data and unlabelled data from another domain
-        # from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
-        # _train_dataset = CityscapesxBDDDataset
-
-        from datasets.fakedata_dataset import FakeData_Dataset
-        _train_dataset = FakeData_Dataset
+        from datasets.cityscapes_bdd_dataset import CityscapesxBDDDataset
+        _train_dataset = CityscapesxBDDDataset
 
         if self.opt.sup_loss_only:        # e.g. if labelled cityscapes only
             _only_labelled = True
@@ -112,7 +108,7 @@ class BaseTrainer():
 
     def init_validation(self):
         if not self.opt.skip_validation:
-            from ue_testing.tester import Tester
+            from ue_testing.testing.tester import Tester
             return Tester(self.opt, self.model)
 
     def validate_if_needed(self):
@@ -187,7 +183,7 @@ class BaseTrainer():
         save_dict = {
                 "train_step": self.train_step,
                 "val_step": self.val_step,
-                "encoder": encoder_state_dict(),
+                "encoder": encoder_state_dict,
                 "decoder": self.model.seg_net.decoder.state_dict(),
             }
         
@@ -205,5 +201,6 @@ class BaseTrainer():
         for network in self.model.schedulers:
             save_dict[network+"_scheduler"] = self.model.schedulers[network].state_dict()
 
-        torch.save(save_dict, os.path.join(self.opt.network_destination, "saved_model_epoch_"+str(self.val_step)+".tar"))
-        print("Saved: ", os.path.join(self.opt.network_destination, "saved_model_epoch_"+str(self.val_step)+".tar"))
+        path = os.path.join(self.opt.network_destination, "saved_model_epoch_"+str(self.val_step)+".tar")
+        torch.save(save_dict, path)
+        print("Saved: ", path)
