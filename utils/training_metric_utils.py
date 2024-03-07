@@ -1,5 +1,5 @@
 import torch
-from ue_testing.test_utils import calculate_fbeta_score, calculate_accuracy, calculate_miou
+from ue_testing.utils.test_utils import calculate_fbeta_score, calculate_accuracy, calculate_miou
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
