@@ -98,7 +98,8 @@ class SegmentationModel(nn.Module):
         self.train_proto_dataset.no_appearance_transform = True
         self.train_proto_dataset.add_resize_noise = False
         self.train_proto_dataset.no_colour = True
-        self.train_proto_dataset.crop_size = self.crop_size   
+        self.train_proto_dataset.crop_size = self.crop_size
+        self.train_proto_dataset.max_crop_ratio = 1
         self.train_proto_dataloader = torch.utils.data.DataLoader(
                                                     dataset=self.train_proto_dataset, 
                                                     batch_size=self.opt.batch_size, 
@@ -185,7 +186,7 @@ class SegmentationModel(nn.Module):
         self.seg_net.eval()
 
 
-    def get_seg_masks(self, imgs, high_res=False, masks=None, return_mask_features=False, branch=None):
+    def get_seg_masks(self, imgs, high_res=False, masks=None, branch=None):
         """
         Get segmentation masks from the input images, imgs.
         Determines the method based on branch arg and training options.
@@ -198,15 +199,15 @@ class SegmentationModel(nn.Module):
         """
 
         if branch == "target" and self.target_seg_net:
-            return self.target_seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+            return self.target_seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks)
         elif branch == "target" and not self.target_seg_net:
-            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks)
         elif branch == "query" and self.opt.use_proto_seg:
             return self.proto_segment_imgs(imgs, use_dataset_prototypes=False, output_spread=False, include_void=False, masks=masks)
         elif branch == "query" and not self.opt.use_proto_seg:
-            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks)
         else:
-            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks, return_mask_features=return_mask_features)
+            return self.seg_net.get_seg_masks(imgs, high_res=high_res, masks=masks)
 
 
     def get_val_seg_masks(self, imgs):

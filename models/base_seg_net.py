@@ -15,7 +15,6 @@ class BaseSegNet(nn.Module):
 
         self.intermediate_dim = self.opt.intermediate_dim
         self.prototype_len = self.opt.prototype_len
-
         self.num_known_classes = num_known_classes
 
         if self.opt.include_void:

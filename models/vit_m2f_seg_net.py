@@ -37,7 +37,12 @@ class ViT_M2F_SegNet(BaseSegNet):
         super().__init__(device, opt, num_known_classes)
 
         # defining encoder
-        vit_dino = get_repo_dino(dino_path=self.opt.dino_path, lora_rank=self.opt.lora_rank, vit_size=self.opt.vit_size)
+        vit_dino = get_repo_dino(
+                        dino_path=self.opt.dino_path, 
+                        dino_repo_path=self.opt.dino_repo_path,
+                        lora_rank=self.opt.lora_rank, 
+                        vit_size=self.opt.vit_size,
+                        )
         self.encoder = vit_dino
         self.encoder_dim = vit_dino.embed_dim
 

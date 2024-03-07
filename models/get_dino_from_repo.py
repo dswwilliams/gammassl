@@ -1,9 +1,8 @@
 import torch
-
-import sys
-sys.path.append("/Users/dw/code/pytorch/dinov2")
-import math
 import torch.nn as nn
+import math
+import sys
+from functools import partial
 
 
 def interpolate_pos_encoding(pos_embed, x, w, h, patch_size):
@@ -43,26 +42,29 @@ def interpolate_pos_encoding(pos_embed, x, w, h, patch_size):
     return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(previous_dtype)
 
 
-def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=None, vit_size="small"):
+def get_repo_dino(dino_path, dino_repo_path, lora_rank=None, vit_size="small"):
     """
     Returns a Vision Transformer model from the DINO repository of the specified size.
     Calls into the relevant dino repository to get the model (i.e. https://github.com/facebookresearch/dinov2)
 
     Args:
         dino_path: path to the model weights
+        dino_repo_path: path to the dino repository
         lora_rank: rank of the LoRA approximation
         vit_size: size of the Vision Transformer model
 
     Returns:
         dino_repo: Vision Transformer model from the DINO repository
     """
-    sys.path.append("../dinov2")
+    sys.path.append(dino_repo_path)
+    from dinov2.layers import MemEffAttention, NestedTensorBlock as Block
     if vit_size == "small":
         from dinov2.models.vision_transformer import vit_small
         dino_repo = vit_small(
                     patch_size=14,
                     init_values=0.25,
                     lora_rank=lora_rank,
+                    block_fn=partial(Block, attn_class=MemEffAttention)
                     )
     elif vit_size == "base":
         from dinov2.models.vision_transformer import vit_base
@@ -70,6 +72,7 @@ def get_repo_dino(dino_path="/Users/dw/networks/dinov2/dinov2.pth", lora_rank=No
                     patch_size=14,
                     init_values=0.25,
                     lora_rank=lora_rank,
+                    block_fn=partial(Block, attn_class=MemEffAttention)
                     )
 
 
