@@ -1,8 +1,21 @@
+# What does this repo do?
+Implements methods for training semantic segmentation networks to perform high-quality uncertainty estimation on distributionally-shifted data. It does this by training on unlabelled distributionally-shifted images with a self-supervised task, and learning to detect segmentation inconsistency as a proxy for segmentation error.
 
-### Code for the projects presented in the following:
+`./scripts/train_deeplab_gssl.sh` represents our first method to do this in [GammaSSL](https://dswwilliams.github.io/posts/gammassl), and then `./scripts/train_vit_mgssl.sh` represents our second method [MaskedGammaSSL](https://dswwilliams.github.io/posts/mgssl).
+
+Testing the quality of a model's uncertainty estimation can be performed using `ue_testing`.
+
+The required conda environment can be setup with:
+```
+conda env create -f environment.yml
+conda activate gammassl
+```
+
+
+## Papers
 
 [“Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data”, D. Williams, D. De Martini, M. Gadd, and P. Newman, IEEE Transactions on Robotics (T-RO), 2024](https://dswwilliams.github.io/posts/gammassl)
-<!-- TODO: link this to my personal website not arxiv -->
+
 ```
 @article{gammassl,
 title={{Mitigating Distributional Shift in Semantic Segmentation via Uncertainty Estimation from Unlabelled Data}},
@@ -13,7 +26,7 @@ year={2024},
 ```
 
 [“Masked Gamma-SSL: Learning Uncertainty Estimation via Masked Image Modeling”, D. Williams, M. Gadd, P. Newman, and D. De Martini, IEEE International Conference on Robotics and Automation (ICRA), 2024](https://dswwilliams.github.io/posts/mgssl)
-<!-- TODO: link this to my personal website not arxiv -->
+
 
 ```
 @article{maskedgammassl,
@@ -22,11 +35,4 @@ author={Williams, David and Gadd, Matthew and Newman, Paul and De Martini, Danie
 booktitle={IEEE International Conference on Robotics and Automation (ICRA)},
 year={2024},
 }
-```
-
-### Environment
-The required conda environment can be setup with:
-```
-conda env create -f environment.yml
-conda activate gammassl
 ```
